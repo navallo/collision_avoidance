@@ -10,9 +10,9 @@ For now (not training):
 
 # Install
 ```
-user# git clone git@github.com:navallo/collision_avoidance.git
-user# cd collision_avoidance
-user# pip install -e .
+git clone git@github.com:navallo/collision_avoidance.git
+cd collision_avoidance
+pip install -e .
 ```
 
 # Run
@@ -21,3 +21,6 @@ For now (not training):
 user# python collision_avoidence_env.py
 ```
 Tested with python3.7, Ubuntu 18
+
+# Reference
+http://motion.cs.umn.edu/r/ActionSelection/
