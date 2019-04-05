@@ -2,7 +2,7 @@
 gym-like collision avoidance environment with ORCA
 
 
-# known dependents
+# Known dependencies 
 For now (not training):   
 
 [OpenAI Gym](https://github.com/openai/gym) (minimum install should be enough)   
