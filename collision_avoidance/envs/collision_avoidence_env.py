@@ -121,7 +121,7 @@ class Collision_Avoidance_Env(gym.Env):
 			pref_vel = self.comp_pred_vel(i)
 			if i == 0:
 				self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
-				pass
+				# pass
 			else:
 				# self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
 				self.sim.setAgentPrefVelocity(self.world["agents_id"][i], (0,0))
@@ -344,6 +344,7 @@ class Collision_Avoidance_Env(gym.Env):
 	def orca_step(self, action):
 		self.sim.doStep()
 		self.update_pref_vel()
+		observation = self._get_obs()
 		self.draw_update()
 
 
