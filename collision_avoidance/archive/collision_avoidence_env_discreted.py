@@ -1,4 +1,4 @@
-from math import sin, cos, sqrt, exp
+from math import sin, cos, sqrt, exp, pi
 import time
 
 import gym
@@ -9,7 +9,7 @@ import numpy as np
 from tkinter import *
 import rvo2
 
-from utils import *
+from collision_avoidance.envs.utils import *
 
 class Collision_Avoidance_Env(gym.Env):
 	metadata = {'render.modes': ['human']}
@@ -31,11 +31,20 @@ class Collision_Avoidance_Env(gym.Env):
 		self.framedelay = 30
 		self.envsize = 10
 
-		#gym parmaters
-		self.action_space = spaces.Box(low=-self.maxSpeed, high=self.maxSpeed, shape=(2,), dtype=np.float32)
-		self.observation_space = spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(4 + self.laser_num*4,), dtype=np.float32)
+		self.step_count = 0
+		self.max_step = 1000
 
-		self.rng, seed = seeding.np_random()
+		#gym parmaters
+		#Discrete action space
+		self.action_size = 8
+		self.action_space = spaces.Discrete(self.action_size)
+
+		#Continuous action space
+		# self.action_space = spaces.Box(low=-self.maxSpeed, high=self.maxSpeed, shape=(2,), dtype=np.float32)
+
+		self.observation_space = spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(4 + self.laser_num*4,), dtype=np.float32)
+		self.seed()
+				
 		self._init_comp_laser_rays()
 		self._init_comp_circle_approx()
 
@@ -48,10 +57,10 @@ class Collision_Avoidance_Env(gym.Env):
 									   self.velocity)
 		self._init_world()
 		self._init_visworld()
-		self.draw_update()
+		# self.draw_update()
 		
 		self.reset()
-	
+
 	#part of the initial
 	def _init_world(self):
 		self.world = {}
@@ -63,7 +72,7 @@ class Collision_Avoidance_Env(gym.Env):
 		#Add agents
 		for i in range(self.numAgents):
 			pos = (self.rng.uniform(self.envsize * 0.5, self.envsize), self.rng.uniform(0, self.envsize))
-			angle = self.rng.uniform(0, 2 * np.pi)
+			angle = self.rng.uniform(0, 2 * pi)
 			pref_vel = (cos(angle), sin(angle))
 			self._init_add_agents(pos, pref_vel)
 
@@ -82,7 +91,7 @@ class Collision_Avoidance_Env(gym.Env):
 		self.sim.processObstacles()
 
 	def _init_add_agents(self, pos, pref_vel):
-		agents_id = self.sim.addAgent(pos, 
+		agent_id = self.sim.addAgent(pos, 
 									  self.neighborDist, 
 									  self.maxNeighbors, 
 									  self.timeHorizon, 
@@ -90,10 +99,10 @@ class Collision_Avoidance_Env(gym.Env):
 									  self.radius, 
 									  self.maxSpeed, 
 									  pref_vel)
-		self.world["agents_id"].append(agents_id)
+		self.world["agents_id"].append(agent_id)
 
-		# self.sim.setAgentPosition(agents_id, pos)
-		self.sim.setAgentPrefVelocity(agents_id, pref_vel)
+		# self.sim.setAgentPosition(agent_id, pos)
+		self.sim.setAgentPrefVelocity(agent_id, pref_vel)
 
 	#ADD Obstacles (*** Assume all obstacles are made by 4 verticles, !!!! clockwise !!!!  ***)
 	# in documentation it is counterclockwise, but I found clockwise works 
@@ -111,9 +120,11 @@ class Collision_Avoidance_Env(gym.Env):
 		for i in range(self.numAgents):
 			pref_vel = self.comp_pred_vel(i)
 			if i == 0:
-				self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
+				# self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
+				pass
 			else:
-				self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
+				# self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
+				self.sim.setAgentPrefVelocity(self.world["agents_id"][i], (0,0))
 
 	def comp_pred_vel(self, agent_id):
 			pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
@@ -220,7 +231,7 @@ class Collision_Avoidance_Env(gym.Env):
 		neighbor_ids = []
 
 		for i in range(self.sim.getAgentNumAgentNeighbors(agent_id)):
-			print("found agents",self.sim.getAgentAgentNeighbor(agent_id,i))
+			# print("found agents",self.sim.getAgentAgentNeighbor(agent_id,i))
 			neighbor_id = self.sim.getAgentAgentNeighbor(agent_id,i)
 			neighbor_ids += [neighbor_id] * 8
 
@@ -244,7 +255,7 @@ class Collision_Avoidance_Env(gym.Env):
 		for i in range(self.sim.getAgentNumObstacleNeighbors(agent_id)):
 			v1_id = self.sim.getAgentObstacleNeighbor(agent_id,i)
 			v2_id = self.sim.getNextObstacleVertexNo(v1_id)
-			print("found wall",self.sim.getAgentObstacleNeighbor(agent_id,i))
+			# print("found wall",self.sim.getAgentObstacleNeighbor(agent_id,i))
 			# print(self.sim.getObstacleVertex(v1_id),self.sim.getObstacleVertex(v2_id))
 			v1_pos = self.sim.getObstacleVertex(v1_id)
 			v2_pos = self.sim.getObstacleVertex(v2_id)
@@ -259,7 +270,7 @@ class Collision_Avoidance_Env(gym.Env):
 	#computer laser lines from one agent
 	def _init_comp_laser_rays(self):
 		ray_lines = []
-		d_theta = 2*np.pi / self.laser_num
+		d_theta = 2*pi / self.laser_num
 
 		for i in range(self.laser_num):
 			theta = i * d_theta
@@ -272,7 +283,7 @@ class Collision_Avoidance_Env(gym.Env):
 	#use polygon to approxmate circles
 	def _init_comp_circle_approx(self):
 		approx_lines = []
-		d_theta = 2*np.pi / self.circle_approx_num
+		d_theta = 2*pi / self.circle_approx_num
 		fisrt_approx_pos = (self.radius*np.cos(0), - self.radius*np.sin(0))
 		approx_pos = fisrt_approx_pos
 
@@ -287,35 +298,69 @@ class Collision_Avoidance_Env(gym.Env):
 		# should be like [[(1.5, -0.0), (1.06, -1.06)]...]
 		self.approx_lines = approx_lines
 
-	def donw_test(self):
+	def done_test(self):
 		agent_id = 0
 		pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
 		target_pos = self.world["targets_pos"][agent_id]
-		if (target_pos[1]-pos[1])**2 + (target_pos[0]-pos[0])**2 < 0.1:
-			return True
+		target_dist = (target_pos[1]-pos[1])**2 + (target_pos[0]-pos[0])**2
+		if target_dist < 0.1:
+			return True, target_dist
 		else:
-			return False
+			return False, target_dist
 
 	def step(self, action):
-		# agent_id = 0
-		# self.sim.setAgentVelocity(agent_id, action[0],action[1])
 
+		agent_id = 0
+		pref_vel = np.array(self.comp_pred_vel(agent_id))
+
+		dtheta = (2*pi) / self.action_size
+		act_vel = (cos(action*dtheta),sin(action*dtheta))
+		self.sim.setAgentPrefVelocity(agent_id, act_vel)
+
+		# self.sim.setAgentPrefVelocity(agent_id, (float(action[0]),float(action[1])))
 		self.sim.doStep()
-		self.update_pref_vel()
-		self.draw_update()
+		# self.update_pref_vel()
+		# self.draw_update()
 
-		done = self.donw_test()
-		ob = self._get_obs()
+		orca_vel = self.sim.getAgentVelocity(agent_id)
 
-		# return ob, reward, done, {}
+		scale = 0.5
+		R_goal = np.dot(orca_vel, pref_vel)
+		# R_goal = np.dot(act_vel, pref_vel)
+		R_polite = np.dot(orca_vel, act_vel)
+		reward = scale * R_goal + (1 - scale) * R_polite
+
+		done, target_dist = self.done_test()
+
+		# reward += np.max([1/target_dist, 5])
+
+		self.step_count += 1
+		if self.step_count >= self.max_step:
+			done = True
+		observation = self._get_obs()
+
+		return observation, reward, done, {}
 
 	def reset(self):
-		pass
-		# return self.env._get_obs()
+		for i in range(self.numAgents):
+			agent_id = self.world["agents_id"][i]
+			pos = (self.rng.uniform(self.envsize * 0.5, self.envsize), self.rng.uniform(0, self.envsize))
+			# angle = self.rng.uniform(0, 2 * pi)
+
+			self.sim.setAgentPosition(agent_id, pos)
+
+		self.update_pref_vel()
+		self.step_count = 0
+
+		return self._get_obs()
 
 	#gym native render, should be useless
 	def render(self, mode='human'):
-		pass
+		self.draw_update()
+
+	def seed(self, seed=None):
+		self.rng, seed = seeding.np_random(seed)
+		return [seed]
 
 	#gym native func, should never be called
 	def close(self):
@@ -379,4 +424,4 @@ class Collision_Avoidance_Env(gym.Env):
 if __name__ == "__main__":
 	CA = Collision_Avoidance_Env()
 	for i in range(2000):
-		CA.step(1)
+		CA.step((0,0))

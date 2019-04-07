@@ -1,1 +1,2 @@
-from collision_avoidance.envs.collision_avoidance import Collision_Avoidance_Env
+from collision_avoidance.envs.collision_avoidence_env import Collision_Avoidance_Env
+import collision_avoidance.envs.utils
