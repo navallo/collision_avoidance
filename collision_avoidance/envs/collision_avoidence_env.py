@@ -27,7 +27,7 @@ class Collision_Avoidance_Env(gym.Env):
 
 		self.numAgents = 10
 
-		self.pixelsize = 500
+		self.pixelsize = 1000
 		self.framedelay = 30
 		self.envsize = 10
 
@@ -66,6 +66,8 @@ class Collision_Avoidance_Env(gym.Env):
 		self.world = {}
 		self.world["agents_id"] = []
 		self.world["obstacles_vertex_ids"] = []
+		self.world["laserScans"] = []
+		#self.world["laserScans"].append([])  # for now only one laser scan
 
 		self.world["targets_pos"] = []
 
@@ -81,6 +83,17 @@ class Collision_Avoidance_Env(gym.Env):
 			self.world["targets_pos"].append(target_pos)
 
 		self.update_pref_vel()
+
+		#Add lasers
+		for i in range(self.numAgents):
+			laserScan = []
+			for j in range(self.laser_num):
+				laserScan.append([0, 0, 0, 0])
+			self.world["laserScans"].append(laserScan)
+
+
+		for i in range(self.laser_num):
+			self.world["laserScans"][0].append([0, 0, 0, 0])
 
 		#Add an obstacle
 		#map wall
@@ -142,11 +155,13 @@ class Collision_Avoidance_Env(gym.Env):
 
 		self.visWorld = {}
 
-		#ADD Agents
 		self.visWorld["bot_circles_id"] = []
 		self.visWorld["vel_lines_id"] = []
 		self.visWorld["pref_vel_lines_id"] = []
+		self.visWorld["bot_laser_scan_lines_id"] = []
+		#self.visWorld["bot_laser_scan_lines_id"].append([])
 
+		# ADD Agents
 		for i in range(len(self.world["agents_id"])):
 			if i == 0:
 				self.visWorld["bot_circles_id"].append(self.canvas.create_oval( \
@@ -158,6 +173,19 @@ class Collision_Avoidance_Env(gym.Env):
 					0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="#f30067"))
 			self.visWorld["pref_vel_lines_id"].append(self.canvas.create_line(	\
 					0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="#7bc67b"))
+
+		# ADD Lasers
+		# only one laser scan for now
+		# for i in range(0, self.laser_num):
+		# 	self.visWorld["bot_laser_scan_lines_id"][0].append(self.canvas.create_line(
+		# 		0, 0, self.radius, self.radius, width=2, fill='purple'))
+
+		for i in range(len(self.world["laserScans"])):
+			laserScan = []
+			for j in range(len(self.world["laserScans"][i])):
+				laserScan.append(self.canvas.create_line(
+					0, 0, self.radius, self.radius, width=2, fill='purple'))
+			self.visWorld["bot_laser_scan_lines_id"].append(laserScan)
 
 		#ADD Obstacles
 		self.visWorld["obstacles_id"] = []
@@ -345,6 +373,10 @@ class Collision_Avoidance_Env(gym.Env):
 		self.sim.doStep()
 		self.update_pref_vel()
 		observation = self._get_obs()
+
+		# need to update for multiple robots
+		self.world["laserScans"][0] = observation[4:]
+
 		self.draw_update()
 
 
@@ -378,7 +410,7 @@ class Collision_Avoidance_Env(gym.Env):
 	def draw_world(self):
 		scale = self.pixelsize / self.envsize
 
-		#draw targets
+		#draw agents
 		for i in range(len(self.world["agents_id"])):
 			self.canvas.coords(self.visWorld["bot_circles_id"][i],
 						scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] - self.radius),
@@ -420,6 +452,19 @@ class Collision_Avoidance_Env(gym.Env):
 						scale * (self.world["targets_pos"][i][1] - self.radius),
 						scale * (self.world["targets_pos"][i][0] + self.radius),
 						scale * (self.world["targets_pos"][i][1] + self.radius))
+
+		#draw Lasers
+		for i in range(1):  # for i in range(len(self.world["laserScans"])):
+			vis_i = 0
+			for j in range(0, len(self.world["laserScans"][i]), 4):
+				pos_vel = self.world["laserScans"][i][j:j + 4]
+				self.canvas.coords(self.visWorld["bot_laser_scan_lines_id"][i][vis_i],
+								scale * self.sim.getAgentPosition(self.world["agents_id"][i])[0],
+								scale * self.sim.getAgentPosition(self.world["agents_id"][i])[1],
+								scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] + pos_vel[0]),
+								scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] + pos_vel[1]))
+				vis_i += 1
+
 
 	def draw_update(self):
 		self.draw_world()
