@@ -1,9 +1,12 @@
 from math import sin, cos, sqrt, exp, pi
 import time
+from random import uniform
 
 import gym
-from gym import error, spaces, utils
+# from gym import error, spaces, utils
 from gym.utils import seeding
+
+from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
 from tkinter import *
@@ -11,10 +14,13 @@ import rvo2
 
 from collision_avoidance.envs.utils import *
 
-class Collision_Avoidance_Env(gym.Env):
+#adapting to RLlib
+#todo: remove numpy
+
+class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 	metadata = {'render.modes': ['human']}
 
-	def __init__(self):
+	def __init__(self, numAgents = 10):
 		self.timeStep = 1/60.
 		self.neighborDist = 1.5
 		self.maxNeighbors = 5
@@ -25,9 +31,9 @@ class Collision_Avoidance_Env(gym.Env):
 		self.laser_num = 16
 		self.circle_approx_num = 8
 
-		self.numAgents = 10
+		self.numAgents = numAgents
 
-		self.pixelsize = 1000
+		self.pixelsize = 500 #1000
 		self.framedelay = 30
 		self.envsize = 10
 
@@ -40,11 +46,13 @@ class Collision_Avoidance_Env(gym.Env):
 		# self.action_space = spaces.Discrete(self.action_size)
 
 		#Continuous action space
-		self.action_space = spaces.Box(low=-self.maxSpeed, high=self.maxSpeed, shape=(2,), dtype=np.float32)
+		self.action_space = gym.spaces.Box(low=-self.maxSpeed, high=self.maxSpeed, shape=(2,))
+		self.observation_space = gym.spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(4 + self.laser_num*4,))
 
-		self.observation_space = spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(4 + self.laser_num*4,), dtype=np.float32)
-		self.seed()
-				
+		self.agents_done = [0] * self.numAgents
+
+		# self.seed()
+
 		self._init_comp_laser_rays()
 		self._init_comp_circle_approx()
 
@@ -73,8 +81,8 @@ class Collision_Avoidance_Env(gym.Env):
 
 		#Add agents
 		for i in range(self.numAgents):
-			pos = (self.rng.uniform(self.envsize * 0.5, self.envsize), self.rng.uniform(0, self.envsize))
-			angle = self.rng.uniform(0, 2 * pi)
+			pos = (uniform(self.envsize * 0.5, self.envsize), uniform(0, self.envsize))
+			angle = uniform(0, 2 * pi)
 			pref_vel = (cos(angle), sin(angle))
 			self._init_add_agents(pos, pref_vel)
 
@@ -86,18 +94,25 @@ class Collision_Avoidance_Env(gym.Env):
 
 		#Add lasers
 		for i in range(self.numAgents):
+			self.world["laserScans"].append([0.0] * (self.laser_num * 4))
+
+		'''
+		#Add lasers
+		for i in range(self.numAgents):
 			laserScan = []
 			for j in range(self.laser_num):
 				laserScan.append([0, 0, 0, 0])
 			self.world["laserScans"].append(laserScan)
 
-
-		for i in range(self.laser_num):
-			self.world["laserScans"][0].append([0, 0, 0, 0])
+		#why add twice?
+		# for i in range(self.laser_num):
+			# self.world["laserScans"][0].append([0, 0, 0, 0])
+		'''
 
 		#Add an obstacle
 		#map wall
-		self._init_add_obstacles((0.0,0.0),(0.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
+		self._init_add_obstacles((-15.0,0.0),(-15.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
+		# self._init_add_obstacles((0.0,0.0),(0.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
 
 		self._init_add_obstacles((2.0,0.0),(2.5,0.0),(2.5,4.4),(2.0,4.4))
 		self._init_add_obstacles((2.0,5.6),(2.5,5.6),(2.5,10.0),(2.0,10.0))
@@ -215,44 +230,47 @@ class Collision_Avoidance_Env(gym.Env):
 
 
 	def _get_obs(self):
-		agent_id = 0
+		for i in range(self.numAgents):
+			agent_id = self.world["agents_id"][i]
 
-		#Add pref_vel = norm(target_pos - current_pos) and current_vel into observation
-		pref_vel = self.comp_pred_vel(agent_id)
-		current_vel = self.sim.getAgentVelocity(agent_id)
-		observation = [pref_vel[0],pref_vel[1],current_vel[0],current_vel[1]]
+			#Add pref_vel = norm(target_pos - current_pos) and current_vel into observation
+			pref_vel = self.comp_pred_vel(agent_id)
+			current_vel = self.sim.getAgentVelocity(agent_id)
+			observation = [pref_vel[0],pref_vel[1],current_vel[0],current_vel[1]]
 
-		#LASER
-		relative_neighbor_lines = []
-		neighbor_ids = []
-		relative_obstacle_lines = []
+			#LASER
+			relative_neighbor_lines = []
+			neighbor_ids = []
+			relative_obstacle_lines = []
 
-		if self.sim.getAgentNumAgentNeighbors(agent_id) != 0:
-			relative_neighbor_lines, neighbor_ids = self._obs_neighbor_agent_lines(agent_id)
-		
-		if self.sim.getAgentNumObstacleNeighbors(agent_id) != 0:
-			relative_obstacle_lines = self._obs_obstacle_lines(agent_id)
-		
-		neighbor_vel = [self.sim.getAgentVelocity(id) for id in neighbor_ids]
-		assert len(relative_neighbor_lines) == len(neighbor_vel)
-		relative_neighbor_lines_with_vel = \
-			[(relative_neighbor_lines[i],neighbor_vel[i]) for i in range(len(relative_neighbor_lines))]
-		relative_obstacle_lines_with_vel = \
-			[(relative_obstacle_lines[i],(0,0)) for i in range(len(relative_obstacle_lines))]
+			if self.sim.getAgentNumAgentNeighbors(agent_id) != 0:
+				relative_neighbor_lines, neighbor_ids = self._obs_neighbor_agent_lines(agent_id)
+			
+			if self.sim.getAgentNumObstacleNeighbors(agent_id) != 0:
+				relative_obstacle_lines = self._obs_obstacle_lines(agent_id)
+			
+			neighbor_vel = [self.sim.getAgentVelocity(id) for id in neighbor_ids]
+			assert len(relative_neighbor_lines) == len(neighbor_vel)
+			relative_neighbor_lines_with_vel = \
+				[(relative_neighbor_lines[i],neighbor_vel[i]) for i in range(len(relative_neighbor_lines))]
+			relative_obstacle_lines_with_vel = \
+				[(relative_obstacle_lines[i],(0,0)) for i in range(len(relative_obstacle_lines))]
 
-		lines_with_vel = relative_neighbor_lines_with_vel + relative_obstacle_lines_with_vel
+			lines_with_vel = relative_neighbor_lines_with_vel + relative_obstacle_lines_with_vel
 
-		if len(lines_with_vel) > 0:
-			laser_result = comp_laser(self.ray_lines, lines_with_vel)
-		else:
-			laser_result = [((0, 0), (0, 0))] * self.laser_num
-		# print('------------------------laser_result\n',laser_result)
+			if len(lines_with_vel) > 0:
+				laser_result = comp_laser(self.ray_lines, lines_with_vel)
+			else:
+				laser_result = [((0, 0), (0, 0))] * self.laser_num
+			# print('------------------------laser_result\n',laser_result)
 
-		for pos_vel in laser_result:
-			observation += [pos_vel[0][0],pos_vel[0][1],pos_vel[1][0],pos_vel[1][1]]
-		assert len(observation) == 4 + self.laser_num*4
+			for pos_vel in laser_result:
+				observation += [pos_vel[0][0],pos_vel[0][1],pos_vel[1][0],pos_vel[1][1]]
+			assert len(observation) == 4 + self.laser_num*4
 
-		return np.array(observation, dtype=np.float32)
+			self.gym_obs['agent_'+str(i)] = observation
+		# return np.array(observation, dtype=np.float32)
+		return self.gym_obs
 
 	def _obs_neighbor_agent_lines(self, agent_id):
 		neighbor_lines = []
@@ -302,7 +320,7 @@ class Collision_Avoidance_Env(gym.Env):
 
 		for i in range(self.laser_num):
 			theta = i * d_theta
-			laser_end_pos = (self.neighborDist*np.cos(theta), - self.neighborDist*np.sin(theta))
+			laser_end_pos = (self.neighborDist*cos(theta), - self.neighborDist*sin(theta))
 			ray_lines.append(((0,0), (laser_end_pos[0], laser_end_pos[1])))
 		# print('ray_lines',ray_lines)
 		# should be like [[(0, 0), (1.5, -0.0)], [(0, 0), (1.38, -0.57)]...]
@@ -312,12 +330,12 @@ class Collision_Avoidance_Env(gym.Env):
 	def _init_comp_circle_approx(self):
 		approx_lines = []
 		d_theta = 2*pi / self.circle_approx_num
-		fisrt_approx_pos = (self.radius*np.cos(0), - self.radius*np.sin(0))
+		fisrt_approx_pos = (self.radius*cos(0), - self.radius*sin(0))
 		approx_pos = fisrt_approx_pos
 
 		for i in range(1, self.circle_approx_num):
 			theta = i * d_theta
-			new_approx_pos = (self.radius*np.cos(theta), - self.radius*np.sin(theta))
+			new_approx_pos = (self.radius*cos(theta), - self.radius*sin(theta))
 			approx_lines.append(((approx_pos[0],approx_pos[1]), (new_approx_pos[0], new_approx_pos[1])))
 			approx_pos = new_approx_pos
 
@@ -327,69 +345,89 @@ class Collision_Avoidance_Env(gym.Env):
 		self.approx_lines = approx_lines
 
 	def done_test(self):
-		agent_id = 0
-		pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
-		target_pos = self.world["targets_pos"][agent_id]
-		target_dist = (target_pos[1]-pos[1])**2 + (target_pos[0]-pos[0])**2
-		if target_dist < 0.1:
-			return True, target_dist
+		for i in range(self.numAgents):
+			agent_id = self.world["agents_id"][i]
+			if self.agents_done[i] == 0:
+				pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
+				# target_pos = self.world["targets_pos"][agent_id]
+				# target_dist = (target_pos[1]-pos[1])**2 + (target_pos[0]-pos[0])**2
+				if pos[0] < 2.0:
+					self.agents_done[agent_id] = 1
+					self.world["targets_pos"][agent_id] = (-10.0,5.0)
+		if 0 not in self.agents_done:
+			return True
 		else:
-			return False, target_dist
+			return False
 
 	def step(self, action):
 
-		agent_id = 0
-		pref_vel = np.array(self.comp_pred_vel(agent_id))
+		for i in range(self.numAgents):
+			agent_id = self.world["agents_id"][i]
+			rl_vel = action['agent_'+str(i)]
 
-		# dtheta = (2*pi) / self.action_size
-		# act_vel = (cos(action*dtheta),sin(action*dtheta))
-		# self.sim.setAgentPrefVelocity(agent_id, act_vel)
-		self.sim.setAgentPrefVelocity(agent_id, (float(action[0]),float(action[1])))
-		self.sim.doStep()
-		# self.update_pref_vel()
-		# self.draw_update()
+			pref_vel = np.array(self.comp_pred_vel(agent_id))
 
-		orca_vel = self.sim.getAgentVelocity(agent_id)
+			self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
+			self.sim.doStep()
+			# self.update_pref_vel()
+			self.draw_update()
 
-		scale = 0.5
-		R_goal = np.dot(orca_vel, pref_vel)
-		# R_goal = np.dot(action, pref_vel)
-		R_polite = np.dot(orca_vel, action)
-		reward = scale * R_goal + (1 - scale) * R_polite
+			orca_vel = self.sim.getAgentVelocity(agent_id)
 
-		done, target_dist = self.done_test()
+			scale = 0.5
+			R_goal = np.dot(orca_vel, pref_vel)
+			# R_goal = np.dot(rl_vel, pref_vel)
+			R_polite = np.dot(orca_vel, rl_vel)
+
+			self.gym_rewards['agent_'+str(i)] = scale * R_goal + (1 - scale) * R_polite
+
+		self.gym_dones['__all__'] = self.done_test()
 
 		# reward += np.max([1/target_dist, 5])
 
 		self.step_count += 1
 		if self.step_count >= self.max_step:
-			done = True
-		observation = self._get_obs()
+			self.gym_dones['__all__'] = True
+		self.gym_obs = self._get_obs()
 
-		return observation, reward, done, {}
+		return self.gym_obs, self.gym_rewards, self.gym_dones, self.gym_infos
 
 	#not used in RL, just for orca visualization
 	def orca_step(self, action):
 		self.sim.doStep()
 		self.update_pref_vel()
-		observation = self._get_obs()
+		self.gym_obs = self._get_obs()
 
 		# need to update for multiple robots
-		self.world["laserScans"][0] = observation[4:]
-
+		# need to move this into render() or step()
+		self.world["laserScans"][0] = self.gym_obs[4:]
+		
 		self.draw_update()
 
 
 	def reset(self):
+		#clear gym parameters
+		self.gym_obs = {}
+		self.gym_rewards = {}
+		self.gym_dones = {'__all__':False}
+		self.gym_infos = {}
+
+		#according to https://github.com/ray-project/ray/blob/master/python/ray/rllib/env/multi_agent_env.py
+		#each agent needs a string name
+		for i in range(self.numAgents):
+			self.gym_obs['agent_'+str(i)] = [0.0] * (4 + self.laser_num * 4)
+			self.gym_rewards['agent_'+str(i)] = 0
+			self.gym_dones['agent_'+str(i)] = False
+			self.gym_infos['agent_'+str(i)] = {}
+
 		for i in range(self.numAgents):
 			agent_id = self.world["agents_id"][i]
-			pos = (self.rng.uniform(self.envsize * 0.5, self.envsize), self.rng.uniform(0, self.envsize))
-			# angle = self.rng.uniform(0, 2 * pi)
-
+			pos = (uniform(self.envsize * 0.5, self.envsize), uniform(0, self.envsize))
 			self.sim.setAgentPosition(agent_id, pos)
 
 		self.update_pref_vel()
 		self.step_count = 0
+		self.agents_done = [0] * self.numAgents
 
 		return self._get_obs()
 
@@ -453,6 +491,7 @@ class Collision_Avoidance_Env(gym.Env):
 						scale * (self.world["targets_pos"][i][0] + self.radius),
 						scale * (self.world["targets_pos"][i][1] + self.radius))
 
+		'''
 		#draw Lasers
 		for i in range(1):  # for i in range(len(self.world["laserScans"])):
 			vis_i = 0
@@ -464,6 +503,7 @@ class Collision_Avoidance_Env(gym.Env):
 								scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] + pos_vel[0]),
 								scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] + pos_vel[1]))
 				vis_i += 1
+		'''
 
 
 	def draw_update(self):
