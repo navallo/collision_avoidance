@@ -22,7 +22,7 @@ pip install -e .
 Training and testing:
 ```
 user# cd collision_avoidance/
-user# python run_baseline.py
+user# python run_rllib.py
 ```
 
 just ORCA policy (not training):   
