@@ -261,6 +261,9 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 			lines_with_vel = relative_neighbor_lines_with_vel + relative_obstacle_lines_with_vel
 
+			# convert to refrence frame of robot
+			#agent_pos = self.sim.getAgentPosition(agent_id)
+
 			if len(lines_with_vel) > 0:
 				laser_result = comp_laser(self.ray_lines, lines_with_vel)
 			else:
@@ -320,6 +323,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 	def _init_comp_laser_rays(self):
 		ray_lines = []
 		d_theta = 2*pi / self.laser_num
+		#theta_int = 0
 
 		for i in range(self.laser_num):
 			theta = i * d_theta

@@ -1,5 +1,6 @@
 from math import sqrt
 from numpy import argsort
+import numpy as np
 
 def line_intersection(L1,L2) :
     p0,p1 = L1[0],L1[1]
@@ -38,8 +39,17 @@ def line_intersection(L1,L2) :
 
     return d,(pos_x,pos_y)
 
+def comp_laser(laser_lines, lines_with_vel, orientation = (0,1)):
+    print("TESTING HERE:", lines_with_vel)
+    print(laser_lines)
+    orientation = np.array(orientation)
+    theta = 0
+    rot = np.array([np.cos(theta), -np.sin(theta),
+                    np.sin(theta), np.cos(theta)])
 
-def comp_laser(laser_lines, lines_with_vel):
+    for loc_vel in lines_with_vel:
+        # [loc_vel[0][0],loc_vel[0][1]]
+
     result = []
     for laser_line in laser_lines:
         # print('--------------------------------------------')

@@ -104,6 +104,8 @@ if __name__ == "__main__":
         "PPO",
         stop={"training_iteration": args.num_iters},
         config={
+            "num_gpus": 1,
+            "num_workers": 6,
             "env": "collision_avoidance",
             "log_level": "WARNING",
             "num_sgd_iter": 10,
@@ -114,7 +116,7 @@ if __name__ == "__main__":
             },
         },
         reuse_actors = True,
-        # resources_per_trial={"cpu": 4},
+        #resources_per_trial={"cpu": 3, "gpu": 1},
         # restore="./rllib_results",
         # checkpoint_at_end=True,
         checkpoint_freq = 3,
