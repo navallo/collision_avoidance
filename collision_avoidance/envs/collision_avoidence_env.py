@@ -9,7 +9,7 @@ from gym.utils import seeding
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
-FLAG_DRAW = False
+FLAG_DRAW = True
 if FLAG_DRAW:
 	from tkinter import *
 import rvo2
@@ -404,7 +404,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 		# need to update for multiple robots
 		# need to move this into render() or step()
-		self.world["laserScans"][0] = self.gym_obs[4:]
+		#self.world["laserScans"][0] = self.gym_obs[4:]
 		
 		self.draw_update()
 
