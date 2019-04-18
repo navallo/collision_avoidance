@@ -48,7 +48,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 		# self.action_space = spaces.Discrete(self.action_size)
 
 		#Continuous action space
-		self.action_space = gym.spaces.Box(low=-self.maxSpeed, high=self.maxSpeed, shape=(2,))
+		self.action_space = gym.spaces.Box(low=-pi, high=pi, shape=(1,))
 		self.observation_space = gym.spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(4 + self.laser_num*4,))
 
 		self.agents_done = [0] * self.numAgents
@@ -265,7 +265,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 			#agent_pos = self.sim.getAgentPosition(agent_id)
 
 			if len(lines_with_vel) > 0:
-				laser_result = comp_laser(self.ray_lines, lines_with_vel)
+				laser_result = comp_laser(self.ray_lines, lines_with_vel, pref_vel)
 			else:
 				laser_result = [((0, 0), (0, 0))] * self.laser_num
 			# print('------------------------laser_result\n',laser_result)
@@ -370,12 +370,14 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 		for i in range(self.numAgents):
 			agent_id = self.world["agents_id"][i]
-			rl_vel = action['agent_'+str(i)]
-
-			# normalize to max vel
-			rl_vel /= np.linalg.norm(rl_vel)
+			theta = action['agent_'+str(i)]
 
 			pref_vel = np.array(self.comp_pred_vel(agent_id))
+			goal_theta = np.arctan2(pref_vel[1], pref_vel[0])
+
+			theta += goal_theta
+
+			rl_vel = (cos(theta), sin(theta))
 
 			self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
 			self.sim.doStep()
@@ -411,9 +413,10 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 		# need to update for multiple robots
 		# need to move this into render() or step()
-		#self.world["laserScans"][0] = self.gym_obs[4:]
+		self.world["laserScans"][0] = self.gym_obs['agent_0'][4:]
 		
 		self.draw_update()
+		input()
 
 
 	def reset(self):
@@ -502,7 +505,6 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 						scale * (self.world["targets_pos"][i][0] + self.radius),
 						scale * (self.world["targets_pos"][i][1] + self.radius))
 
-		'''
 		#draw Lasers
 		for i in range(1):  # for i in range(len(self.world["laserScans"])):
 			vis_i = 0
@@ -514,7 +516,6 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 								scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] + pos_vel[0]),
 								scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] + pos_vel[1]))
 				vis_i += 1
-		'''
 
 
 	def draw_update(self):

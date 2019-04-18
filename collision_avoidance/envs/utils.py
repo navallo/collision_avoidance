@@ -39,16 +39,31 @@ def line_intersection(L1,L2) :
 
     return d,(pos_x,pos_y)
 
-def comp_laser(laser_lines, lines_with_vel, orientation = (0,1)):
-    print("TESTING HERE:", lines_with_vel)
-    print(laser_lines)
-    orientation = np.array(orientation)
-    theta = 0
-    rot = np.array([np.cos(theta), -np.sin(theta),
-                    np.sin(theta), np.cos(theta)])
+def comp_laser(laser_lines, lines_with_vel, orientation):
+    # print("TESTING HERE:", lines_with_vel)
+    # print(laser_lines)
+    # input()
+
+    # negative so that we convert back
+    theta = -np.arctan2(orientation[1], orientation[0])
+
+    rot = np.array([[np.cos(theta), -np.sin(theta)],
+                    [np.sin(theta), np.cos(theta)]])
+
+    new_lines_with_vel = []
 
     for loc_vel in lines_with_vel:
-        # [loc_vel[0][0],loc_vel[0][1]]
+        loc1 = np.array(loc_vel[0][0])
+        loc2 = np.array(loc_vel[0][1])
+        loc1_vel = loc1 + np.array(loc_vel[1])
+
+        loc1 = rot@loc1
+        loc2 = rot@loc2
+        loc1_vel = rot@loc1_vel
+        vel = loc1_vel - loc1
+
+        new_lines_with_vel.append([[loc1,loc2],vel])
+
 
     result = []
     for laser_line in laser_lines:
@@ -56,7 +71,7 @@ def comp_laser(laser_lines, lines_with_vel, orientation = (0,1)):
         # print('laser_line',laser_line)
         dists, intersections = [],[]
 
-        for line in lines_with_vel:
+        for line in new_lines_with_vel:
             d, i = line_intersection(laser_line,line[0])
             dists.append(d)
             intersections.append(i)
@@ -70,7 +85,7 @@ def comp_laser(laser_lines, lines_with_vel, orientation = (0,1)):
         if min_dist_inter == (0,0):
             min_dist_vel = (0,0)
         else:
-            min_dist_vel = lines_with_vel[min_dist_index][1]
+            min_dist_vel = new_lines_with_vel[min_dist_index][1]
         # print('min_dist',min_dist)
         # print('min_dist_inter',min_dist_inter) # (0.21588836319353769, 0.5212006143803669)
         # print('min_dist_vel',min_dist_vel) # (0.9885764122009277, 0.15071740746498108)
