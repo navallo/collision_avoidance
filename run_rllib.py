@@ -29,7 +29,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--num-agents", type=int, default=10)
 parser.add_argument("--num-policies", type=int, default=1)
-parser.add_argument("--num-iters", type=int, default=20)
+parser.add_argument("--num-iters", type=int, default=100)
 
 
 class CustomModel1(Model):
