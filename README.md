@@ -8,8 +8,11 @@ gym-like collision avoidance environment with ORCA
  
 2. [Optimal Reciprocal Collision Avoidance](https://github.com/sybrenstuvel/Python-RVO2/)  
 
-3. RL-baseline:  
-https://github.com/hill-a/stable-baselines
+3. RLlib (Ray):   
+https://ray.readthedocs.io/en/latest/index.html  
+please install 0.7.0 dev from wheel link  
+https://ray.readthedocs.io/en/latest/installation.html#trying-snapshots-from-master
+
 
 # Install
 ```
