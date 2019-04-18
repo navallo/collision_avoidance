@@ -9,7 +9,9 @@ from gym.utils import seeding
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
-from tkinter import *
+FLAG_DRAW = False
+if FLAG_DRAW:
+	from tkinter import *
 import rvo2
 
 from collision_avoidance.envs.utils import *
@@ -64,8 +66,9 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 									   self.maxSpeed, 
 									   self.velocity)
 		self._init_world()
-		self._init_visworld()
-		# self.draw_update()
+		if FLAG_DRAW:
+			self._init_visworld()
+			# self.draw_update()
 		
 		self.reset()
 
@@ -370,7 +373,8 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 			self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
 			self.sim.doStep()
 			# self.update_pref_vel()
-			self.draw_update()
+			if FLAG_DRAW:
+				self.draw_update()
 
 			orca_vel = self.sim.getAgentVelocity(agent_id)
 

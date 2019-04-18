@@ -29,7 +29,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--num-agents", type=int, default=10)
 parser.add_argument("--num-policies", type=int, default=1)
-parser.add_argument("--num-iters", type=int, default=10)
+parser.add_argument("--num-iters", type=int, default=20)
 
 
 class CustomModel1(Model):
@@ -113,4 +113,11 @@ if __name__ == "__main__":
                     lambda agent_id: random.choice(policy_ids)),
             },
         },
+        reuse_actors = True,
+        # resources_per_trial={"cpu": 4},
+        # restore="./rllib_results",
+        # checkpoint_at_end=True,
+        checkpoint_freq = 3,
+        resume="prompt",
+        local_dir="./rllib_results"
     )
