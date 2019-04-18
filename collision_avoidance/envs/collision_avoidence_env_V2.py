@@ -153,12 +153,14 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
     def update_pref_vel(self):
         for i in range(self.numAgents):
             pref_vel = self.comp_pred_vel(i)
-            if i == 0:
-                self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
-            # pass
-            else:
-                # self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
-                self.sim.setAgentPrefVelocity(self.world["agents_id"][i], (0, 0))
+            self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
+            # for experiment only move one
+            # if i == 0:
+            #     self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
+            # # pass
+            # else:
+            #     # self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
+            #     self.sim.setAgentPrefVelocity(self.world["agents_id"][i], (0, 0))
 
     def comp_pred_vel(self, agent_id):
         pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
@@ -401,8 +403,9 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
     # not used in RL, just for orca visualization
     def orca_step(self, action):
         self.sim.doStep()
+        self.done_test()
         self.update_pref_vel()
-        self.gym_obs = self._get_obs()
+        #self.gym_obs = self._get_obs()
 
         # need to update for multiple robots
         # need to move this into render() or step()

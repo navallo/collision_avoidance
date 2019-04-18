@@ -368,6 +368,9 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 			agent_id = self.world["agents_id"][i]
 			rl_vel = action['agent_'+str(i)]
 
+			# normalize to max vel
+			rl_vel /= np.linalg.norm(rl_vel)
+
 			pref_vel = np.array(self.comp_pred_vel(agent_id))
 
 			self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
