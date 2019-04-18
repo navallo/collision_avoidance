@@ -10,6 +10,7 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
 FLAG_DRAW = True
+# FLAG_DRAW = False
 if FLAG_DRAW:
 	from tkinter import *
 import rvo2
@@ -49,7 +50,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 		#Continuous action space
 		self.action_space = gym.spaces.Box(low=-pi, high=pi, shape=(1,))
-		self.observation_space = gym.spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(4 + self.laser_num*4,))
+		self.observation_space = gym.spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(self.laser_num*4,))
 
 		self.agents_done = [0] * self.numAgents
 
@@ -239,7 +240,8 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 			#Add pref_vel = norm(target_pos - current_pos) and current_vel into observation
 			pref_vel = self.comp_pred_vel(agent_id)
 			current_vel = self.sim.getAgentVelocity(agent_id)
-			observation = [pref_vel[0],pref_vel[1],current_vel[0],current_vel[1]]
+			# observation = [pref_vel[0],pref_vel[1],current_vel[0],current_vel[1]]
+			observation = []
 
 			#LASER
 			relative_neighbor_lines = []
@@ -272,7 +274,8 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 			for pos_vel in laser_result:
 				observation += [pos_vel[0][0],pos_vel[0][1],pos_vel[1][0],pos_vel[1][1]]
-			assert len(observation) == 4 + self.laser_num*4
+			# assert len(observation) == 4 + self.laser_num*4
+			assert len(observation) == self.laser_num*4
 
 			self.gym_obs['agent_'+str(i)] = observation
 		# return np.array(observation, dtype=np.float32)
@@ -373,11 +376,10 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 			theta = action['agent_'+str(i)]
 
 			pref_vel = np.array(self.comp_pred_vel(agent_id))
+			
 			goal_theta = np.arctan2(pref_vel[1], pref_vel[0])
-
-			theta += goal_theta
-
-			rl_vel = (cos(theta), sin(theta))
+			goal_theta += theta
+			rl_vel = (cos(goal_theta), sin(goal_theta))
 
 			self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
 			self.sim.doStep()

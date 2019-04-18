@@ -51,7 +51,6 @@ def comp_laser(laser_lines, lines_with_vel, orientation):
                     [np.sin(theta), np.cos(theta)]])
 
     new_lines_with_vel = []
-
     for loc_vel in lines_with_vel:
         loc1 = np.array(loc_vel[0][0])
         loc2 = np.array(loc_vel[0][1])
@@ -63,7 +62,26 @@ def comp_laser(laser_lines, lines_with_vel, orientation):
         vel = loc1_vel - loc1
 
         new_lines_with_vel.append([[loc1,loc2],vel])
+    
+    '''
+    #just multiply for once, maybe faster?
+    #turn out to be slower...
+    all_points = []
+    for loc_vel in lines_with_vel:
+        loc1 = loc_vel[0][0]
+        loc2 = loc_vel[0][1]
+        loc1_vel = (loc1[0] + loc_vel[1][0], loc1[1] + loc_vel[1][1])
 
+        all_points.append(loc1) 
+        all_points.append(loc2) 
+        all_points.append(loc1_vel) 
+    all_points = np.array(all_points)
+    roted_all_points = rot@(all_points.T)
+    roted_all_points = all_points.reshape(-1,6)
+
+    for ps in roted_all_points:
+        new_lines_with_vel.append([[(ps[0],ps[1]),(ps[2],ps[3])],(ps[4]-ps[0],ps[5]-ps[1])])
+    '''
 
     result = []
     for laser_line in laser_lines:
