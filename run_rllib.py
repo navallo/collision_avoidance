@@ -93,7 +93,7 @@ if __name__ == "__main__":
         }
         return (None, obs_space, act_space, config)
 
-    # Setup PPO with an ensemble of `num_policies` different policy graphs
+    # Setup PPO with an ensemble of `num_policies` different policy graph
     policy_graphs = {
         "policy_{}".format(i): gen_policy(i)
         for i in range(args.num_policies)
@@ -104,8 +104,8 @@ if __name__ == "__main__":
         "PPO",
         stop={"training_iteration": args.num_iters},
         config={
-            # "num_gpus": 1,
-            "num_workers": 3,
+             "num_gpus": 1,
+            "num_workers": 6,
             "env": "collision_avoidance",
             "log_level": "WARNING",
             "num_sgd_iter": 10,
