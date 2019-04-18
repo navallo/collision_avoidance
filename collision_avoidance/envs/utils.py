@@ -61,7 +61,7 @@ def comp_laser(laser_lines, lines_with_vel, orientation):
         loc1_vel = rot@loc1_vel
         vel = loc1_vel - loc1
 
-        new_lines_with_vel.append([[loc1,loc2],vel])
+        new_lines_with_vel.append([[loc1, loc2], vel])
     
     '''
     #just multiply for once, maybe faster?
