@@ -389,12 +389,13 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 			orca_vel = self.sim.getAgentVelocity(agent_id)
 
-			scale = 0.5
-			# R_goal = np.dot(orca_vel, pref_vel)
+			scale = 0.1
+			R_goal = np.dot(orca_vel, pref_vel)
 			# R_goal = np.dot(rl_vel, pref_vel)
-			# R_polite = np.dot(orca_vel, rl_vel)
+			R_polite = np.dot(orca_vel, rl_vel)
+			self.gym_rewards['agent_' + str(i)] = scale*R_goal + (1-scale)*R_polite
 
-			self.gym_rewards['agent_'+str(i)] = -1 if self.agents_done[agent_id] == 0 else 0
+			# self.gym_rewards['agent_'+str(i)] = R_polite - 1 if self.agents_done[agent_id] == 0 else R_polite
 
 		self.gym_dones['__all__'] = self.done_test()
 
