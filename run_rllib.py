@@ -29,7 +29,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--num-agents", type=int, default=10)
 parser.add_argument("--num-policies", type=int, default=1)
-parser.add_argument("--num-iters", type=int, default=100)
+parser.add_argument("--num-iters", type=int, default=1000)
 
 
 class CustomModel1(Model):
@@ -104,8 +104,8 @@ if __name__ == "__main__":
         "PPO",
         stop={"training_iteration": args.num_iters},
         config={
-             "num_gpus": 1,
-            "num_workers": 6,
+            #  "num_gpus": 1,
+            "num_workers": 3,
             "env": "collision_avoidance",
             "log_level": "WARNING",
             "num_sgd_iter": 10,
@@ -121,5 +121,5 @@ if __name__ == "__main__":
         # checkpoint_at_end=True,
         checkpoint_freq = 3,
         resume="prompt",
-        local_dir="./rllib_results2"
+        local_dir="./rllib_results"
     )
