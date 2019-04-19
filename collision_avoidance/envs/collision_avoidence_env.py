@@ -9,8 +9,8 @@ from gym.utils import seeding
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
-# FLAG_DRAW = True
-FLAG_DRAW = False
+FLAG_DRAW = True
+# FLAG_DRAW = False
 if FLAG_DRAW:
 	from tkinter import *
 import rvo2
@@ -70,7 +70,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 		if FLAG_DRAW:
 			self._init_visworld()
 			# self.draw_update()
-		
+
 		self.reset()
 
 	#part of the initial
@@ -150,7 +150,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 	def update_pref_vel(self):
 		for i in range(self.numAgents):
-			pref_vel = self.comp_pred_vel(i)
+			pref_vel = self.comp_pref_vel(i)
 			if i == 0:
 				self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
 				# pass
@@ -158,7 +158,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 				# self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
 				self.sim.setAgentPrefVelocity(self.world["agents_id"][i], (0,0))
 
-	def comp_pred_vel(self, agent_id):
+	def comp_pref_vel(self, agent_id):
 			pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
 			target_pos = self.world["targets_pos"][agent_id]
 			angle = np.arctan2(target_pos[1]-pos[1],target_pos[0]-pos[0])
@@ -238,7 +238,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 			agent_id = self.world["agents_id"][i]
 
 			#Add pref_vel = norm(target_pos - current_pos) and current_vel into observation
-			pref_vel = self.comp_pred_vel(agent_id)
+			pref_vel = self.comp_pref_vel(agent_id)
 			current_vel = self.sim.getAgentVelocity(agent_id)
 			# observation = [pref_vel[0],pref_vel[1],current_vel[0],current_vel[1]]
 			observation = []
@@ -375,7 +375,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 			agent_id = self.world["agents_id"][i]
 			theta = action['agent_'+str(i)]
 
-			pref_vel = np.array(self.comp_pred_vel(agent_id))
+			pref_vel = np.array(self.comp_pref_vel(agent_id))
 			
 			goal_theta = np.arctan2(pref_vel[1], pref_vel[0])
 			goal_theta += theta
@@ -405,6 +405,9 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 		if self.step_count >= self.max_step:
 			self.gym_dones['__all__'] = True
 		self.gym_obs = self._get_obs()
+		
+		if self.gym_dones['__all__'] == True:
+			print('episode_time,', time.clock() - self.t_start)
 
 		return self.gym_obs, self.gym_rewards, self.gym_dones, self.gym_infos
 
@@ -442,7 +445,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 		self.update_pref_vel()
 		self.gym_obs = self._get_obs()
 
-		pref_vel = np.array(self.comp_pred_vel(self.world["agents_id"][0]))
+		pref_vel = np.array(self.comp_pref_vel(self.world["agents_id"][0]))
 
 		# need to update for multiple robots
 		# need to move this into render() or step()
@@ -475,6 +478,8 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 		self.update_pref_vel()
 		self.step_count = 0
 		self.agents_done = [0] * self.numAgents
+
+		self.t_start = time.clock()
 
 		return self._get_obs()
 
@@ -562,3 +567,4 @@ if __name__ == "__main__":
 	CA = Collision_Avoidance_Env()
 	for i in range(2000):
 		CA.orca_step((0,0))
+		
