@@ -9,8 +9,8 @@ from gym.utils import seeding
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
-FLAG_DRAW = True
-# FLAG_DRAW = False
+# FLAG_DRAW = True
+FLAG_DRAW = False
 if FLAG_DRAW:
     from tkinter import *
 import rvo2
@@ -154,12 +154,12 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
 
     def comp_pref_vel(self, agent_id):
-            pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
-            target_pos = self.world["targets_pos"][agent_id]
-            angle = np.arctan2(target_pos[1]-pos[1],target_pos[0]-pos[0])
-            pref_vel = (cos(angle), sin(angle))
+        pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
+        target_pos = self.world["targets_pos"][agent_id]
+        angle = np.arctan2(target_pos[1]-pos[1],target_pos[0]-pos[0])
+        pref_vel = (cos(angle), sin(angle))
 
-            return pref_vel
+        return pref_vel
 
     #part of the initial
     def _init_visworld(self):
@@ -366,15 +366,19 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
     def step(self, action):
 
+        rl_vels = []
+        pref_vels = []
         for i in range(self.numAgents):
             agent_id = self.world["agents_id"][i]
             theta = action['agent_'+str(i)]
 
             pref_vel = np.array(self.comp_pref_vel(agent_id))
+            pref_vels.append(pref_vel)
             
             goal_theta = np.arctan2(pref_vel[1], pref_vel[0])
             goal_theta += theta
             rl_vel = (cos(goal_theta), sin(goal_theta))
+            rl_vels.append(rl_vel)
 
             self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
 
@@ -383,11 +387,13 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             self.draw_update()
 
         for i in range(self.numAgents):
+            pref_vel = pref_vels[i]
+            rl_vel = rl_vels[i]
             agent_id = self.world["agents_id"][i]
 
             orca_vel = self.sim.getAgentVelocity(agent_id)
 
-            scale = 0.1
+            scale = 0.5
             R_goal = np.dot(orca_vel, pref_vel)
             # R_goal = np.dot(rl_vel, pref_vel)
             R_polite = np.dot(orca_vel, rl_vel)
