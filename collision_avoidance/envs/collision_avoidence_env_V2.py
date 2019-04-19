@@ -168,12 +168,12 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
 
     def comp_pref_vel(self, agent_id):
-            pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
-            target_pos = self.world["targets_pos"][agent_id]
-            angle = np.arctan2(target_pos[1]-pos[1],target_pos[0]-pos[0])
-            pref_vel = (cos(angle), sin(angle))
+        pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
+        target_pos = self.world["targets_pos"][agent_id]
+        angle = np.arctan2(target_pos[1]-pos[1],target_pos[0]-pos[0])
+        pref_vel = (cos(angle), sin(angle))
 
-            return pref_vel
+        return pref_vel
 
     #part of the initial
     def _init_visworld(self):
@@ -379,6 +379,10 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             return False
 
     def online_step(self):
+
+        action_vels = []
+        pref_vels = []
+        action_ids = []
         for i in range(self.numAgents):
             agent_id = self.world["agents_id"][i]
 
@@ -386,44 +390,68 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             ps = np.exp(weights / self.online_temp)
             ps /= np.sum(ps)
 
-            action_id = np.random.choice(len(self.online_actions), 1, p=ps)
+            action_id = int(np.random.choice(len(self.online_actions), 1, p=ps))
             action = self.online_actions[action_id]
+            action_ids.append(action_id)
 
             pref_vel = np.array(self.comp_pref_vel(agent_id))
+            pref_vels.append(pref_vel)
+
             goal_theta = np.arctan2(pref_vel[1], pref_vel[0])
             theta = np.arctan2(action[1], action[0])
             goal_theta += theta
-            rl_vel = (cos(goal_theta), sin(goal_theta))
+            action_vel = (cos(goal_theta), sin(goal_theta))
+            action_vels.append(action_vel)
 
-            self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
+
+            self.sim.setAgentPrefVelocity(agent_id, (float(action_vel[0]),float(action_vel[1])))
 
         self.sim.doStep()
         if FLAG_DRAW:
             self.draw_update()
 
         for i in range(self.numAgents):
+            pref_vel = pref_vels[i]
+            action_vel = action_vels[i]
+            action_id = action_ids[i]
+
             agent_id = self.world["agents_id"][i]
 
             orca_vel = self.sim.getAgentVelocity(agent_id)
 
-            scale = 0.5
+            scale = 0.8
             R_goal = np.dot(orca_vel, pref_vel)
-            R_polite = np.dot(orca_vel, rl_vel)
-            self.world["action_weights"][agent_id][action_id] = scale*R_goal + (1-scale)*R_polite
+            R_polite = np.dot(orca_vel, action_vel)
+            R = scale*R_goal + (1-scale)*R_polite
+
+            self.world["action_weights"][agent_id][action_id] *= 0.5
+            self.world["action_weights"][agent_id][action_id] += R
+
+            for act_id in range(len(self.online_actions)):
+                if act_id != action_id:
+                    self.world["action_weights"][agent_id][act_id] *= 0.5
 
 
+        self.gym_dones['__all__'] = self.done_test()
+
+        if self.gym_dones['__all__'] == True:
+            print('episode_time,', time.clock() - self.t_start)
 
     def step(self, action):
 
+        rl_vels = []
+        pref_vels = []
         for i in range(self.numAgents):
             agent_id = self.world["agents_id"][i]
             theta = action['agent_'+str(i)]
 
             pref_vel = np.array(self.comp_pref_vel(agent_id))
+            pref_vels.append(pref_vel)
             
             goal_theta = np.arctan2(pref_vel[1], pref_vel[0])
             goal_theta += theta
             rl_vel = (cos(goal_theta), sin(goal_theta))
+            rl_vels.append(rl_vel)
 
             self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
 
@@ -432,11 +460,13 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             self.draw_update()
 
         for i in range(self.numAgents):
+            pref_vel = pref_vels[i]
+            rl_vel = rl_vels[i]
             agent_id = self.world["agents_id"][i]
 
             orca_vel = self.sim.getAgentVelocity(agent_id)
 
-            scale = 0.1
+            scale = 0.5
             R_goal = np.dot(orca_vel, pref_vel)
             # R_goal = np.dot(rl_vel, pref_vel)
             R_polite = np.dot(orca_vel, rl_vel)
@@ -499,7 +529,6 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
         self.world["laserScans"][0] = self.rotate_laser_scan(self.gym_obs['agent_0'], pref_vel)
         
         self.draw_update()
-        input()
 
 
     def reset(self):
@@ -615,5 +644,6 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 if __name__ == "__main__":
     CA = Collision_Avoidance_Env()
     for i in range(2000):
-        CA.orca_step((0,0))
+        # CA.orca_step((0,0))
+        CA.online_step()
         
