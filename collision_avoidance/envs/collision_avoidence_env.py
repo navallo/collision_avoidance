@@ -42,15 +42,15 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
         self.envsize = 10
 
         self.step_count = 0
-        self.max_step = 1000
+        self.max_step = 3000
 
         #gym parmaters
         #Discrete action space
-        self.action_size = 8
-        self.action_space = gym.spaces.Discrete(self.action_size)
+        # self.action_size = 8
+        # self.action_space = gym.spaces.Discrete(self.action_size)
 
         #Continuous action space
-        # self.action_space = gym.spaces.Box(low=-self.maxSpeed, high=self.maxSpeed, shape=(2,))
+        self.action_space = gym.spaces.Box(low=-self.maxSpeed, high=self.maxSpeed, shape=(3,))
         self.observation_space = gym.spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(4 + self.laser_num*4,))
 
         self.agents_done = [0] * self.numAgents
@@ -366,21 +366,23 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
         for i in range(self.numAgents):
             agent_id = self.world["agents_id"][i]
 
+            '''
             #discreted action, action is int
             action_id = action['agent_'+str(i)]
             theta = (action_id/self.action_size)*2*pi
             rl_vel = (cos(theta),sin(theta))
+            '''
 
-            '''
             #continous action, action is (x,y)
-            rl_vel = action['agent_'+str(i)]
+            rl_vel = action['agent_'+str(i)][0:2]
             rl_vel /= sqrt(rl_vel@rl_vel)
-            '''
+            speed = action['agent_'+str(i)][2]
+            speed = (speed + pi)/(2*pi)
 
             rl_vels.append(rl_vel)
             pref_vel = np.array(self.comp_pref_vel(agent_id))
             pref_vels.append(pref_vel)
-            self.sim.setAgentPrefVelocity(agent_id, (float(rl_vel[0]),float(rl_vel[1])))
+            self.sim.setAgentPrefVelocity(agent_id, (speed*float(rl_vel[0]),speed*float(rl_vel[1])))
         
         self.sim.doStep()
         if FLAG_DRAW:
@@ -393,22 +395,23 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             agent_id = self.world["agents_id"][i]
             orca_vel = self.sim.getAgentVelocity(agent_id)
 
-            scale = 0.4
+            scale = 0.5
             R_goal = np.dot(orca_vel, pref_vel)
-            # R_goal = np.dot(rl_vel, pref_vel)
+            R_greedy = np.dot(rl_vel, pref_vel)
             R_polite = np.dot(orca_vel, rl_vel)
-            self.gym_rewards['agent_' + str(i)] = scale*R_goal + (1-scale)*R_polite
-            self.gym_rewards['agent_' + str(i)] += -0.5 if self.agents_done[agent_id] == 0 else 0
+            # self.gym_rewards['agent_' + str(i)] = scale*R_goal + (1-scale)*R_polite
+            self.gym_rewards['agent_' + str(i)] = 0.4*R_goal + 0.2*R_greedy + 0.5*R_polite
+            # self.gym_rewards['agent_' + str(i)] += -0.1 if self.agents_done[agent_id] == 0 else 0
+
+        self.gym_obs = self._get_obs()
 
         self.gym_dones['__all__'] = self.done_test()
-
         self.step_count += 1
         if self.step_count >= self.max_step:
             self.gym_dones['__all__'] = True
-        self.gym_obs = self._get_obs()
-
         if self.gym_dones['__all__'] == True:
             print('episode_steps,', self.step_count)
+
         return self.gym_obs, self.gym_rewards, self.gym_dones, self.gym_infos
 
     #not used in RL, just for orca visualization

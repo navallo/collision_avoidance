@@ -46,7 +46,7 @@ class CustomModel1(Model):
             last_layer = slim.fully_connected(
                 input_dict["obs"], 64, activation_fn=tf.nn.relu, scope="fc1")
         last_layer = slim.fully_connected(
-            last_layer, 64, activation_fn=tf.nn.relu, scope="fc2")
+            last_layer, 32, activation_fn=tf.nn.relu, scope="fc2")
         output = slim.fully_connected(
             last_layer, num_outputs, activation_fn=None, scope="fc_out")
         return output, last_layer
@@ -109,6 +109,11 @@ if __name__ == "__main__":
             "env": "collision_avoidance",
             "log_level": "WARNING",
             "num_sgd_iter": 10,
+            "lr": 1e-3,
+            # lr_schedule: [
+                # [0, 0.0007],
+                # [20000000, 5e-3],
+            # ]
             "multiagent": {
                 "policy_graphs": policy_graphs,
                 "policy_mapping_fn": tune.function(
@@ -117,9 +122,10 @@ if __name__ == "__main__":
         },
         reuse_actors = True,
         #resources_per_trial={"cpu": 3, "gpu": 1},
+
         # restore="./rllib_results",
         # checkpoint_at_end=True,
         checkpoint_freq = 3,
         resume="prompt",
-        local_dir="./rllib_results"
+        local_dir="./rllib_results3"
     )
