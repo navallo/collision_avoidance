@@ -18,9 +18,6 @@ import rvo2
 from collision_avoidance.envs.utils import *
 
 
-# adapting to RLlib
-# todo: remove numpy
-
 class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
     metadata = {'render.modes': ['human']}
 
@@ -376,8 +373,9 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             #continous action, action is (x,y)
             rl_vel = action['agent_'+str(i)][0:2]
             rl_vel /= sqrt(rl_vel@rl_vel)
-            speed = action['agent_'+str(i)][2]
-            speed = (speed + pi)/(2*pi)
+            # speed = action['agent_'+str(i)][2]
+            # speed = (speed + pi)/(2*pi)
+            speed = 1
 
             rl_vels.append(rl_vel)
             pref_vel = np.array(self.comp_pref_vel(agent_id))
@@ -400,8 +398,8 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             R_greedy = np.dot(rl_vel, pref_vel)
             R_polite = np.dot(orca_vel, rl_vel)
             # self.gym_rewards['agent_' + str(i)] = scale*R_goal + (1-scale)*R_polite
-            self.gym_rewards['agent_' + str(i)] = 0.4*R_goal + 0.2*R_greedy + 0.5*R_polite
-            # self.gym_rewards['agent_' + str(i)] += -0.1 if self.agents_done[agent_id] == 0 else 0
+            self.gym_rewards['agent_' + str(i)] = 0.4*R_goal + 0.2*R_greedy + 1*R_polite
+            self.gym_rewards['agent_' + str(i)] += -0.1 if self.agents_done[agent_id] == 0 else 0
 
         self.gym_obs = self._get_obs()
 
