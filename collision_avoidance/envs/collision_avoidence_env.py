@@ -9,8 +9,8 @@ from gym.utils import seeding
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
-# FLAG_DRAW = True
-FLAG_DRAW = False
+FLAG_DRAW = True
+# FLAG_DRAW = False
 if FLAG_DRAW:
     from tkinter import *
 import rvo2
@@ -393,7 +393,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
             orca_vel = self.sim.getAgentVelocity(agent_id)
 
-            scale = 0.5
+            scale = 0.3
             R_goal = np.dot(orca_vel, pref_vel)
             # R_goal = np.dot(rl_vel, pref_vel)
             R_polite = np.dot(orca_vel, rl_vel)

@@ -1,0 +1,353 @@
+from math import sin, cos, sqrt, exp, pi
+import time
+from random import uniform
+
+import gym
+# from gym import error, spaces, utils
+from gym.utils import seeding
+
+from ray.rllib.env.multi_agent_env import MultiAgentEnv
+
+import numpy as np
+FLAG_DRAW = True
+# FLAG_DRAW = False
+if FLAG_DRAW:
+    from tkinter import *
+import rvo2
+
+from collision_avoidance.envs.utils import *
+
+#adapting to RLlib
+#todo: remove numpy
+
+class Collision_Avoidance_Sim():
+
+    def __init__(self, numAgents = 10):
+        self.timeStep = 1/10.
+        self.neighborDist = 1.5
+        self.maxNeighbors = 5
+        self.timeHorizon = 1.5
+        self.timewindow = 20
+        self.radius = 0.5
+        self.maxSpeed = 1
+        self.circle_approx_num = 8
+
+        self.online_actions = [(1, 0),
+            (0.70711, 0.70711),
+            (0, 1),
+            (-0.70711, 0.70711),
+            (-1, 0),
+            (-0.70711, -0.70711),
+            (0, -1),
+            (0.70711, -0.70711)]
+        self.online_temp = 0.2
+
+        self.numAgents = numAgents
+
+        self.pixelsize = 500 #1000
+        self.framedelay = 30
+        self.envsize = 10
+
+        self.step_count = 0
+        self.max_step = 1000
+
+        self.agents_done = [0] * self.numAgents
+
+        self.sim = rvo2.PyRVOSimulator(timeStep = self.timeStep,
+                                       neighborDist = self.neighborDist,
+                                       maxNeighbors = self.maxNeighbors,
+                                       timeHorizon = self.timeHorizon,
+                                       timeHorizonObst = self.timeHorizon,
+                                       radius = self.radius,
+                                       maxSpeed = self.maxSpeed)
+        self._init_world()
+        if FLAG_DRAW:
+            self._init_visworld()
+            # self.draw_update()
+
+    #part of the initial
+    def _init_world(self):
+        self.world = {}
+        self.world["agents_id"] = []
+        self.world["obstacles_vertex_ids"] = []
+        self.world["laserScans"] = []
+        self.world["action_weights"] = []
+        self.world["action_times"] = []
+        self.world["targets_pos"] = []
+
+        #Add agents
+        for i in range(self.numAgents):
+            pos = (uniform(self.envsize * 0.5, self.envsize), uniform(0, self.envsize))
+            angle = uniform(0, 2 * pi)
+            pref_vel = (cos(angle), sin(angle))
+            self._init_add_agents(pos, pref_vel)
+
+            #set target
+            target_pos = (1.0,5.0)
+            self.world["targets_pos"].append(target_pos)
+
+            self.world["action_weights"].append([0.0] * len(self.online_actions))
+            self.world["action_times"].append([0.0] * len(self.online_actions))
+
+
+        self.update_pref_vel()
+
+        #Add an obstacle
+        #map wall
+        self._init_add_obstacles((-15.0,0.0),(-15.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
+        # self._init_add_obstacles((0.0,0.0),(0.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
+
+        self._init_add_obstacles((2.0,0.0),(2.5,0.0),(2.5,4.4),(2.0,4.4))
+        self._init_add_obstacles((2.0,5.6),(2.5,5.6),(2.5,10.0),(2.0,10.0))
+        self.sim.processObstacles()
+
+    def _init_add_agents(self, pos, pref_vel):
+        agent_id = self.sim.addAgent(pos,
+                                      self.neighborDist,
+                                      self.maxNeighbors,
+                                      self.timeHorizon,
+                                      1.5,
+                                      self.radius,
+                                      self.maxSpeed,
+                                      pref_vel)
+        self.world["agents_id"].append(agent_id)
+
+        # self.sim.setAgentPosition(agent_id, pos)
+        self.sim.setAgentPrefVelocity(agent_id, pref_vel)
+
+    #ADD Obstacles (*** Assume all obstacles are made by 4 verticles, !!!! clockwise !!!!  ***)
+    # in documentation it is counterclockwise, but I found clockwise works
+    #http://gamma.cs.unc.edu/RVO2/documentation/2.0/class_r_v_o_1_1_r_v_o_simulator.html#a0f4a896c78fc09240083faf2962a69f2
+
+    def _init_add_obstacles(self, upper_left, upper_right, bottom_right, bottom_left):
+        verticals = []
+        vertical_id = self.sim.addObstacle([upper_left, upper_right, bottom_right, bottom_left])
+        for j in range(4):
+            verticals.append(vertical_id)
+            vertical_id = self.sim.getNextObstacleVertexNo(vertical_id)
+        self.world["obstacles_vertex_ids"].append(verticals)
+
+    def update_pref_vel(self):
+        for i in range(self.numAgents):
+            pref_vel = self.comp_pref_vel(i)
+            self.sim.setAgentPrefVelocity(self.world["agents_id"][i], pref_vel)
+
+    def comp_pref_vel(self, agent_id):
+        pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
+        target_pos = self.world["targets_pos"][agent_id]
+        angle = np.arctan2(target_pos[1]-pos[1],target_pos[0]-pos[0])
+        pref_vel = (cos(angle), sin(angle))
+
+        return pref_vel
+
+    #part of the initial
+    def _init_visworld(self):
+        self.win = Tk()
+        self.canvas = Canvas(self.win, width=self.pixelsize, height=self.pixelsize, background="#eaeaea")
+        self.canvas.pack()
+
+        self.visWorld = {}
+
+        self.visWorld["bot_circles_id"] = []
+        self.visWorld["vel_lines_id"] = []
+        self.visWorld["pref_vel_lines_id"] = []
+
+        # ADD Agents
+        for i in range(len(self.world["agents_id"])):
+            if i == 0:
+                self.visWorld["bot_circles_id"].append(self.canvas.create_oval(
+                    -self.radius, -self.radius, self.radius, self.radius, outline='', fill="#ff5733"))
+            else:
+                self.visWorld["bot_circles_id"].append(self.canvas.create_oval(
+                    -self.radius, -self.radius, self.radius, self.radius, outline='', fill="#f8b739"))
+            self.visWorld["vel_lines_id"].append(self.canvas.create_line(
+                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="#f30067"))
+            self.visWorld["pref_vel_lines_id"].append(self.canvas.create_line(
+                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="#7bc67b"))
+
+        #ADD Obstacles
+        self.visWorld["obstacles_id"] = []
+        for i in range(len(self.world["obstacles_vertex_ids"])):
+            ids = self.world["obstacles_vertex_ids"][i]
+            four_vertex_pos = [self.sim.getObstacleVertex(j) for j in ids]
+            if i == 0:
+                self.visWorld["obstacles_id"].append(self.canvas.create_polygon (
+                    four_vertex_pos[0][0], four_vertex_pos[0][1],
+                    four_vertex_pos[1][0], four_vertex_pos[1][1],
+                    four_vertex_pos[2][0], four_vertex_pos[2][1],
+                    four_vertex_pos[3][0], four_vertex_pos[3][1],
+                    fill=""))
+            else:
+                self.visWorld["obstacles_id"].append(self.canvas.create_polygon(
+                    four_vertex_pos[0][0], four_vertex_pos[0][1],
+                    four_vertex_pos[1][0], four_vertex_pos[1][1],
+                    four_vertex_pos[2][0], four_vertex_pos[2][1],
+                    four_vertex_pos[3][0], four_vertex_pos[3][1],
+                    fill="#444444"))
+
+        #ADD targets
+        self.visWorld["targets_id"] = []
+        for i in range(len(self.world["targets_pos"])):
+            self.visWorld["targets_id"].append(self.canvas.create_oval(
+                0, 0, self.radius, self.radius, outline='', fill="#448ef6"))
+
+    def done_test(self):
+        for i in range(self.numAgents):
+            agent_id = self.world["agents_id"][i]
+            if self.agents_done[i] == 0:
+                pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
+                # target_pos = self.world["targets_pos"][agent_id]
+                # target_dist = (target_pos[1]-pos[1])**2 + (target_pos[0]-pos[0])**2
+                if pos[0] < 2.0:
+                    self.agents_done[agent_id] = 1
+                    self.world["targets_pos"][agent_id] = (-10.0,5.0)
+        if 0 not in self.agents_done:
+            return True
+        else:
+            return False
+
+    def online_step(self):
+
+        action_vels = []
+        pref_vels = []
+        action_ids = []
+        for i in range(self.numAgents):
+            agent_id = self.world["agents_id"][i]
+
+            weights = np.array([i for i in self.world["action_weights"][agent_id]])
+            ps = np.exp(weights / self.online_temp)
+            ps /= np.sum(ps)
+
+            action_id = int(np.random.choice(len(self.online_actions), 1, p=ps))
+            action = self.online_actions[action_id]
+            action_ids.append(action_id)
+
+            pref_vel = np.array(self.comp_pref_vel(agent_id))
+            pref_vels.append(pref_vel)
+
+            goal_theta = np.arctan2(pref_vel[1], pref_vel[0])
+            theta = np.arctan2(action[1], action[0])
+            goal_theta += theta
+            action_vel = (cos(goal_theta), sin(goal_theta))
+            action_vels.append(action_vel)
+
+
+            self.sim.setAgentPrefVelocity(agent_id, (float(action_vel[0]),float(action_vel[1])))
+
+        self.sim.doStep()
+        if FLAG_DRAW:
+            self.draw_update()
+
+        for i in range(self.numAgents):
+            pref_vel = pref_vels[i]
+            action_vel = action_vels[i]
+            action_id = action_ids[i]
+
+            agent_id = self.world["agents_id"][i]
+
+            orca_vel = self.sim.getAgentVelocity(agent_id)
+
+            # calculate reward
+            scale = 0.6
+            R_goal = np.dot(orca_vel, pref_vel)
+            R_polite = np.dot(orca_vel, action_vel)
+            R = scale*R_goal + (1-scale)*R_polite
+
+            # increment time window of action weights
+            for act_id in range(len(self.online_actions)):
+                self.world["action_times"][agent_id][act_id] += self.timeStep
+                if self.world["action_times"][agent_id][act_id] >= self.timewindow:
+                    self.world["action_times"][agent_id][act_id] = 0
+                    self.world["action_weights"][agent_id][act_id] = 0
+
+            # update weight
+            self.world["action_weights"][agent_id][action_id] = R
+
+        if self.done_test() == True:
+            print('episode_time,', time.clock() - self.t_start)
+
+
+    #not used in RL, just for orca visualization
+    def orca_step(self):
+        self.sim.doStep()
+        self.update_pref_vel()
+
+        if FLAG_DRAW:
+            self.draw_update()
+
+        if self.done_test() == True:
+            print('episode_time,', time.clock() - self.t_start)
+
+    #gym native render, should be useless
+    def render(self, mode='human'):
+        self.draw_update()
+
+    def seed(self, seed=None):
+        self.rng, seed = seeding.np_random(seed)
+        return [seed]
+
+    #gym native func, should never be called
+    def close(self):
+        print("CALLING close()")
+        input()
+
+
+    def draw_world(self):
+        scale = self.pixelsize / self.envsize
+
+        #draw agents
+        for i in range(len(self.world["agents_id"])):
+            self.canvas.coords(self.visWorld["bot_circles_id"][i],
+                        scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] - self.radius),
+                        scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] - self.radius),
+                        scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] + self.radius),
+                        scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] + self.radius))
+            self.canvas.coords(self.visWorld["vel_lines_id"][i],
+                        scale * self.sim.getAgentPosition(self.world["agents_id"][i])[0],
+                        scale * self.sim.getAgentPosition(self.world["agents_id"][i])[1],
+                        scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] + 2 * self.radius *
+                                self.sim.getAgentVelocity(self.world["agents_id"][i])[0]),
+                        scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] + 2 * self.radius *
+                                self.sim.getAgentVelocity(self.world["agents_id"][i])[1]))
+            self.canvas.coords(self.visWorld["pref_vel_lines_id"][i],
+                        scale * self.sim.getAgentPosition(self.world["agents_id"][i])[0],
+                        scale * self.sim.getAgentPosition(self.world["agents_id"][i])[1],
+                        scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] + 2 * self.radius *
+                                self.sim.getAgentPrefVelocity(self.world["agents_id"][i])[0]),
+                        scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] + 2 * self.radius *
+                                self.sim.getAgentPrefVelocity(self.world["agents_id"][i])[1]))
+
+        #draw obstacles
+        for i in range(len(self.world["obstacles_vertex_ids"])):
+            ids = self.world["obstacles_vertex_ids"][i]
+            self.canvas.coords(self.visWorld["obstacles_id"][i],
+                        scale * self.sim.getObstacleVertex(ids[0])[0],
+                        scale * self.sim.getObstacleVertex(ids[0])[1],
+                        scale * self.sim.getObstacleVertex(ids[1])[0],
+                        scale * self.sim.getObstacleVertex(ids[1])[1],
+                        scale * self.sim.getObstacleVertex(ids[2])[0],
+                        scale * self.sim.getObstacleVertex(ids[2])[1],
+                        scale * self.sim.getObstacleVertex(ids[3])[0],
+                        scale * self.sim.getObstacleVertex(ids[3])[1])
+
+        #draw targets
+        for i in range(len(self.world["targets_pos"])):
+            self.canvas.coords(self.visWorld["targets_id"][i],
+                        scale * (self.world["targets_pos"][i][0] - self.radius),
+                        scale * (self.world["targets_pos"][i][1] - self.radius),
+                        scale * (self.world["targets_pos"][i][0] + self.radius),
+                        scale * (self.world["targets_pos"][i][1] + self.radius))
+
+
+    def draw_update(self):
+        self.draw_world()
+        self.win.update_idletasks()
+        self.win.update()
+        time.sleep(self.timeStep)
+
+
+if __name__ == "__main__":
+    CA = Collision_Avoidance_Sim()
+    for i in range(2000):
+        CA.online_step()
+        # CA.orca_step()
