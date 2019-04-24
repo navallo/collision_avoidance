@@ -22,15 +22,14 @@ from collision_avoidance.envs.utils import *
 
 class Collision_Avoidance_Sim():
 
-    def __init__(self, numAgents = 10):
+    def __init__(self, numAgents = 50):
         self.timeStep = 1/10.
         self.neighborDist = 1.5
         self.maxNeighbors = 5
         self.timeHorizon = 1.5
-        self.timewindow = 20
+        self.timewindow = 2
         self.radius = 0.5
         self.maxSpeed = 1
-        self.circle_approx_num = 8
 
         self.online_actions = [(1, 0),
             (0.70711, 0.70711),
@@ -40,16 +39,15 @@ class Collision_Avoidance_Sim():
             (-0.70711, -0.70711),
             (0, -1),
             (0.70711, -0.70711)]
-        self.online_temp = 0.2
+        self.online_temp = 0.1
 
         self.numAgents = numAgents
 
-        self.pixelsize = 500 #1000
-        self.framedelay = 30
-        self.envsize = 10
+        self.pixelsize = 1000
+        self.envsize = self.radius*numAgents
 
         self.step_count = 0
-        self.max_step = 1000
+        self.max_step = 2000
 
         self.agents_done = [0] * self.numAgents
 
@@ -61,9 +59,31 @@ class Collision_Avoidance_Sim():
                                        radius = self.radius,
                                        maxSpeed = self.maxSpeed)
         self._init_world()
+        self.play_speed = 4
         if FLAG_DRAW:
             self._init_visworld()
-            # self.draw_update()
+
+        # start timer
+        self.t_start = time.time()
+
+    def run_sim(self, mode=1):
+        # check if valid mode is given
+        if mode != 1 & mode != 0:
+            mode = 1
+
+        # step through simulation
+        self.t_start = time.time()
+        success = False
+        for i in range(self.max_step):
+            if mode == 1:
+                self.online_step()
+            else:
+                self.orca_step()
+            success = self.done_test()
+            if success:
+                break
+
+        return self.step_count*self.timeStep, success
 
     #part of the initial
     def _init_world(self):
@@ -75,30 +95,125 @@ class Collision_Avoidance_Sim():
         self.world["action_times"] = []
         self.world["targets_pos"] = []
 
-        #Add agents
+        # self._init_world_congestion()
+        self._init_world_deadlock()
+
+    def _init_world_congestion(self):
+        # adjust environment size
+        self.envsize = self.radius * self.numAgents
+        # Add agents
         for i in range(self.numAgents):
-            pos = (uniform(self.envsize * 0.5, self.envsize), uniform(0, self.envsize))
+            pos = (uniform(self.envsize * 0.2, self.envsize), uniform(0, self.envsize))
             angle = uniform(0, 2 * pi)
             pref_vel = (cos(angle), sin(angle))
             self._init_add_agents(pos, pref_vel)
 
-            #set target
-            target_pos = (1.0,5.0)
+            # set target
+            target_pos = ((0.1 * self.envsize - 1.0, self.envsize / 2), (0.1 * self.envsize - self.envsize, self.envsize / 2))
             self.world["targets_pos"].append(target_pos)
 
             self.world["action_weights"].append([0.0] * len(self.online_actions))
             self.world["action_times"].append([0.0] * len(self.online_actions))
 
+        self.update_pref_vel()
+
+        # border obstacle
+        self._init_add_obstacles((-self.envsize, 0.0), (-self.envsize, self.envsize),
+                                 (self.envsize, self.envsize), (self.envsize, 0.0))
+
+        # internal obstacles
+        self._init_add_obstacles((0.1 * self.envsize, 0.0),
+                                 (0.1 * self.envsize + 0.5, 0.0),
+                                 (0.1 * self.envsize + 0.5, self.envsize / 2 - 1.25 * self.radius),
+                                 (0.1 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
+
+        self._init_add_obstacles((0.1 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.1 * self.envsize + 0.5, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.1 * self.envsize + 0.5, self.envsize),
+                                 (0.1 * self.envsize, self.envsize))
+
+        self.sim.processObstacles()
+
+    def _init_world_deadlock(self):
+        # adjust environment size
+        self.envsize = (self.radius * self.numAgents)*5
+        # Add agents
+        pos_y = self.envsize / 2
+        pos_x = 0.3 * self.envsize
+        x_inc = -1.5 * self.radius
+        for i in range(0, int(self.numAgents / 2)):
+            pos = (pos_x, pos_y)
+            angle = uniform(0, 2 * pi)
+            pref_vel = (cos(angle), sin(angle))
+            self._init_add_agents(pos, pref_vel)
+
+            # set target
+            target_pos = ((0.7 * self.envsize, self.envsize / 2),
+                          (0.7 * self.envsize + self.envsize, self.envsize / 2))
+            self.world["targets_pos"].append(target_pos)
+
+            self.world["action_weights"].append([0.0] * len(self.online_actions))
+            self.world["action_times"].append([0.0] * len(self.online_actions))
+            pos_x += x_inc
+
+        pos_x = 0.7 * self.envsize
+        x_inc = 1.5 * self.radius
+        for i in range(int(self.numAgents / 2), self.numAgents):
+            pos = (pos_x, pos_y)
+            angle = uniform(0, 2 * pi)
+            pref_vel = (cos(angle), sin(angle))
+            self._init_add_agents(pos, pref_vel)
+
+            # set target
+            target_pos = ((0.3 * self.envsize, self.envsize / 2),
+                          (0.3 * self.envsize - self.envsize, self.envsize / 2))
+            self.world["targets_pos"].append(target_pos)
+
+            self.world["action_weights"].append([0.0] * len(self.online_actions))
+            self.world["action_times"].append([0.0] * len(self.online_actions))
+            pos_x += x_inc
 
         self.update_pref_vel()
 
-        #Add an obstacle
-        #map wall
-        self._init_add_obstacles((-15.0,0.0),(-15.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
-        # self._init_add_obstacles((0.0,0.0),(0.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
+        # border obstacle
+        self._init_add_obstacles((-self.envsize, 0.0), (-self.envsize, self.envsize),
+                                 (2 * self.envsize, self.envsize), (2 * self.envsize, 0.0))
 
-        self._init_add_obstacles((2.0,0.0),(2.5,0.0),(2.5,4.4),(2.0,4.4))
-        self._init_add_obstacles((2.0,5.6),(2.5,5.6),(2.5,10.0),(2.0,10.0))
+        # internal obstacles
+
+        # left funnel
+        self._init_add_obstacles((0.0, 0.0),
+                                 (0.0 + 0.5, 0.0),
+                                 (0.3 * self.envsize + 0.5, self.envsize / 2 - 1.25 * self.radius),
+                                 (0.3 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
+
+        self._init_add_obstacles((0.0, self.envsize),
+                                 (0.3 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.3 * self.envsize + 0.5, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.0 + 0.5, self.envsize))
+
+        # right funnel
+        self._init_add_obstacles((self.envsize - 0.5, 0.0),
+                                 (self.envsize, 0.0),
+                                 (0.7 * self.envsize, self.envsize / 2 - 1.25 * self.radius),
+                                 (0.7 * self.envsize - 0.5, self.envsize / 2 - 1.25 * self.radius))
+
+        self._init_add_obstacles((self.envsize - 0.5, self.envsize),
+                                 (0.7 * self.envsize - 0.5, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.7 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (self.envsize, self.envsize))
+
+        # tube
+        self._init_add_obstacles((0.3 * self.envsize, (self.envsize / 2 - 1.25 * self.radius) - 0.5),
+                                 (0.7 * self.envsize, (self.envsize / 2 - 1.25 * self.radius) - 0.5),
+                                 (0.7 * self.envsize, self.envsize / 2 - 1.25 * self.radius),
+                                 (0.3 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
+
+        self._init_add_obstacles((0.3 * self.envsize, (self.envsize / 2 + 1.25 * self.radius) + 0.5),
+                                 (0.3 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.7 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.7 * self.envsize, (self.envsize / 2 + 1.25 * self.radius) + 0.5))
+
         self.sim.processObstacles()
 
     def _init_add_agents(self, pos, pref_vel):
@@ -134,7 +249,7 @@ class Collision_Avoidance_Sim():
 
     def comp_pref_vel(self, agent_id):
         pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
-        target_pos = self.world["targets_pos"][agent_id]
+        target_pos = self.world["targets_pos"][agent_id][0]
         angle = np.arctan2(target_pos[1]-pos[1],target_pos[0]-pos[0])
         pref_vel = (cos(angle), sin(angle))
 
@@ -195,12 +310,13 @@ class Collision_Avoidance_Sim():
         for i in range(self.numAgents):
             agent_id = self.world["agents_id"][i]
             if self.agents_done[i] == 0:
+                # check if agent has reached goal
                 pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
-                # target_pos = self.world["targets_pos"][agent_id]
-                # target_dist = (target_pos[1]-pos[1])**2 + (target_pos[0]-pos[0])**2
-                if pos[0] < 2.0:
+                t_pos = self.world["targets_pos"][agent_id][0]
+                if sqrt((pos[0] - t_pos[0])**2 + (pos[1] - t_pos[1])**2) < self.radius:
                     self.agents_done[agent_id] = 1
-                    self.world["targets_pos"][agent_id] = (-10.0,5.0)
+                    self.world["targets_pos"][agent_id] = (self.world["targets_pos"][agent_id][1],
+                                                           self.world["targets_pos"][agent_id][1])
         if 0 not in self.agents_done:
             return True
         else:
@@ -248,7 +364,7 @@ class Collision_Avoidance_Sim():
             orca_vel = self.sim.getAgentVelocity(agent_id)
 
             # calculate reward
-            scale = 0.6
+            scale = 0.7
             R_goal = np.dot(orca_vel, pref_vel)
             R_polite = np.dot(orca_vel, action_vel)
             R = scale*R_goal + (1-scale)*R_polite
@@ -263,8 +379,8 @@ class Collision_Avoidance_Sim():
             # update weight
             self.world["action_weights"][agent_id][action_id] = R
 
-        if self.done_test() == True:
-            print('episode_time,', time.clock() - self.t_start)
+        # increment steps
+        self.step_count += 1
 
 
     #not used in RL, just for orca visualization
@@ -275,8 +391,7 @@ class Collision_Avoidance_Sim():
         if FLAG_DRAW:
             self.draw_update()
 
-        if self.done_test() == True:
-            print('episode_time,', time.clock() - self.t_start)
+        self.step_count += 1
 
     #gym native render, should be useless
     def render(self, mode='human'):
@@ -333,21 +448,23 @@ class Collision_Avoidance_Sim():
         #draw targets
         for i in range(len(self.world["targets_pos"])):
             self.canvas.coords(self.visWorld["targets_id"][i],
-                        scale * (self.world["targets_pos"][i][0] - self.radius),
-                        scale * (self.world["targets_pos"][i][1] - self.radius),
-                        scale * (self.world["targets_pos"][i][0] + self.radius),
-                        scale * (self.world["targets_pos"][i][1] + self.radius))
-
+                        scale * (self.world["targets_pos"][i][0][0] - self.radius),
+                        scale * (self.world["targets_pos"][i][0][1] - self.radius),
+                        scale * (self.world["targets_pos"][i][0][0] + self.radius),
+                        scale * (self.world["targets_pos"][i][0][1] + self.radius))
 
     def draw_update(self):
+        # draw world and update window
         self.draw_world()
         self.win.update_idletasks()
         self.win.update()
-        time.sleep(self.timeStep)
+        # calculate display delay
+        desired_time = self.step_count*self.timeStep
+        sleep_time = desired_time/self.play_speed - (time.time() - self.t_start)
+        if sleep_time > 0:
+            time.sleep(sleep_time)
 
 
 if __name__ == "__main__":
-    CA = Collision_Avoidance_Sim()
-    for i in range(2000):
-        CA.online_step()
-        # CA.orca_step()
+    CA = Collision_Avoidance_Sim(10)
+    print(CA.run_sim(1))
