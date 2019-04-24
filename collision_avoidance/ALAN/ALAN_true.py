@@ -19,7 +19,7 @@ from collision_avoidance.envs.utils import *
 
 class Collision_Avoidance_Sim():
 
-    def __init__(self, numAgents = 50, scenario="crowd"):
+    def __init__(self, numAgents=50, scenario="crowd", visualize=True):
 
         # ORCA config
         self.timeStep = 1/10.
@@ -51,6 +51,7 @@ class Collision_Avoidance_Sim():
 
         # world config
         self.numAgents = numAgents
+        self.scenario = scenario
 
         self.pixelsize = 1000
         self.envsize = self.radius*numAgents
@@ -60,13 +61,37 @@ class Collision_Avoidance_Sim():
 
         self.agents_done = [0] * self.numAgents
 
-        self._init_world(scenario)
+        self._init_world()
+        self.visualize = visualize
         self.play_speed = 4
-        if FLAG_DRAW:
+        if visualize:
             self._init_visworld()
 
         # start timer
         self.t_start = time.time()
+
+    def reset(self, numAgents=50, scenario="crowd"):
+        # ORCA config
+        self.sim = rvo2.PyRVOSimulator(timeStep=self.timeStep,
+                                       neighborDist=self.neighborDist,
+                                       maxNeighbors=self.maxNeighbors,
+                                       timeHorizon=self.timeHorizon,
+                                       timeHorizonObst=self.timeHorizon,
+                                       radius=self.radius,
+                                       maxSpeed=self.maxSpeed)
+
+
+        # world config
+        self.step_count = 0
+        self.max_step = 2000
+
+        self.agents_done = [0] * self.numAgents
+
+        self._init_world()
+        self.play_speed = 4
+        if self.visualize:
+            self.win.destroy()
+            self._init_visworld()
 
     def run_sim(self, mode=1):
         # check if valid mode is given
@@ -87,7 +112,7 @@ class Collision_Avoidance_Sim():
 
         return self.step_count*self.timeStep, success
 
-    def _init_world(self, scenario):
+    def _init_world(self):
         self.world = {}
         self.world["agents_id"] = []
         self.world["obstacles_vertex_ids"] = []
@@ -96,18 +121,18 @@ class Collision_Avoidance_Sim():
         self.world["action_times"] = []
         self.world["targets_pos"] = []
 
-        if scenario == "congested":
+        if self.scenario == "congested":
             self._init_world_congested()
-        elif scenario == "deadlock":
+        elif self.scenario == "deadlock":
             self._init_world_deadlock()
-        elif scenario == "blocks":
+        elif self.scenario == "blocks":
             self._init_world_blocks()
-        elif scenario == "circle":
+        elif self.scenario == "circle":
             self._init_world_circle()
-        elif scenario == "crowd":
+        elif self.scenario == "crowd":
             self._init_world_crowd()
         else:
-            print(scenario, "is not a valid scenario")
+            print(self.scenario, "is not a valid scenario")
 
     def _init_world_congested(self):
         # adjust environment size
@@ -374,6 +399,7 @@ class Collision_Avoidance_Sim():
     #part of the initial
     def _init_visworld(self):
         self.win = Tk()
+        self.win.title(self.scenario + ": " + str(self.numAgents))
         self.canvas = Canvas(self.win, width=self.pixelsize, height=self.pixelsize, background="#eaeaea")
         self.canvas.pack()
 
@@ -459,11 +485,10 @@ class Collision_Avoidance_Sim():
             action_vel = (cos(goal_theta), sin(goal_theta))
             action_vels.append(action_vel)
 
-
             self.sim.setAgentPrefVelocity(agent_id, (float(action_vel[0]),float(action_vel[1])))
 
         self.sim.doStep()
-        if FLAG_DRAW:
+        if self.visualize:
             self.draw_update()
 
         for i in range(self.numAgents):
@@ -586,5 +611,7 @@ if __name__ == "__main__":
     # deadlock
     # circle
     # blocks
-    CA = Collision_Avoidance_Sim(20, "blocks")
+    CA = Collision_Avoidance_Sim(50, "circle", True)
+    print(CA.run_sim(1))
+    CA.reset()
     print(CA.run_sim(1))
