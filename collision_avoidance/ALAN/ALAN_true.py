@@ -232,7 +232,7 @@ class Collision_Avoidance_Sim():
 
     def _init_world_crowd(self):
         # adjust environment size
-        self.envsize = (self.radius * self.numAgents) / 2
+        self.envsize = sqrt(2 * self.radius * self.numAgents) * 2
         # Add agents
         for i in range(self.numAgents):
             pos = (uniform(0, self.envsize), uniform(0, self.envsize))
@@ -670,7 +670,7 @@ if __name__ == "__main__":
     # deadlock
     # circle
     # blocks
-    CA = Collision_Avoidance_Sim(21, "incoming", True)
+    CA = Collision_Avoidance_Sim(100, "crowd", True)
     print(CA.run_sim(0))
     # CA.reset()
     # print(CA.run_sim(1))
