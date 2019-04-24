@@ -17,20 +17,27 @@ import rvo2
 
 from collision_avoidance.envs.utils import *
 
-#adapting to RLlib
-#todo: remove numpy
-
 class Collision_Avoidance_Sim():
 
-    def __init__(self, numAgents = 50):
+    def __init__(self, numAgents = 50, scenario="crowd"):
+
+        # ORCA config
         self.timeStep = 1/10.
-        self.neighborDist = 1.5
-        self.maxNeighbors = 5
+        self.neighborDist = 5#1.5
+        self.maxNeighbors = 10#5
         self.timeHorizon = 1.5
-        self.timewindow = 2
         self.radius = 0.5
         self.maxSpeed = 1
 
+        self.sim = rvo2.PyRVOSimulator(timeStep=self.timeStep,
+                                       neighborDist=self.neighborDist,
+                                       maxNeighbors=self.maxNeighbors,
+                                       timeHorizon=self.timeHorizon,
+                                       timeHorizonObst=self.timeHorizon,
+                                       radius=self.radius,
+                                       maxSpeed=self.maxSpeed)
+
+        # ALAN config
         self.online_actions = [(1, 0),
             (0.70711, 0.70711),
             (0, 1),
@@ -39,8 +46,10 @@ class Collision_Avoidance_Sim():
             (-0.70711, -0.70711),
             (0, -1),
             (0.70711, -0.70711)]
-        self.online_temp = 0.1
+        self.timewindow = 2
+        self.online_temp = 0.05
 
+        # world config
         self.numAgents = numAgents
 
         self.pixelsize = 1000
@@ -51,14 +60,7 @@ class Collision_Avoidance_Sim():
 
         self.agents_done = [0] * self.numAgents
 
-        self.sim = rvo2.PyRVOSimulator(timeStep = self.timeStep,
-                                       neighborDist = self.neighborDist,
-                                       maxNeighbors = self.maxNeighbors,
-                                       timeHorizon = self.timeHorizon,
-                                       timeHorizonObst = self.timeHorizon,
-                                       radius = self.radius,
-                                       maxSpeed = self.maxSpeed)
-        self._init_world()
+        self._init_world(scenario)
         self.play_speed = 4
         if FLAG_DRAW:
             self._init_visworld()
@@ -85,8 +87,7 @@ class Collision_Avoidance_Sim():
 
         return self.step_count*self.timeStep, success
 
-    #part of the initial
-    def _init_world(self):
+    def _init_world(self, scenario):
         self.world = {}
         self.world["agents_id"] = []
         self.world["obstacles_vertex_ids"] = []
@@ -95,13 +96,22 @@ class Collision_Avoidance_Sim():
         self.world["action_times"] = []
         self.world["targets_pos"] = []
 
-        # self._init_world_congestion()
-        self._init_world_deadlock()
-        # self._init_world_crowd()
+        if scenario == "congested":
+            self._init_world_congested()
+        elif scenario == "deadlock":
+            self._init_world_deadlock()
+        elif scenario == "blocks":
+            self._init_world_blocks()
+        elif scenario == "circle":
+            self._init_world_circle()
+        elif scenario == "crowd":
+            self._init_world_crowd()
+        else:
+            print(scenario, "is not a valid scenario")
 
-    def _init_world_congestion(self):
+    def _init_world_congested(self):
         # adjust environment size
-        self.envsize = self.radius * self.numAgents
+        self.envsize = 1.5 * self.radius * self.numAgents
         # Add agents
         for i in range(self.numAgents):
             pos = (uniform(self.envsize * 0.2, self.envsize), uniform(0, self.envsize))
@@ -159,6 +169,84 @@ class Collision_Avoidance_Sim():
         # border obstacle
         self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
                                  (self.envsize, self.envsize), (self.envsize, 0.0))
+
+        self.sim.processObstacles()
+
+    def _init_world_circle(self):
+        # adjust environment size
+        circle_circumference = self.radius*3*self.numAgents
+        circle_radius = circle_circumference/(2*pi)
+        self.envsize = 2*circle_radius + 4*self.radius
+
+        theta_inc = (2*pi)/self.numAgents
+        theta = 0
+        # Add agents
+        for i in range(self.numAgents):
+            pos = (self.envsize/2 + circle_radius*cos(theta),
+                   self.envsize/2 + circle_radius*sin(theta))
+            angle = uniform(0, 2 * pi)
+            pref_vel = (cos(angle), sin(angle))
+            self._init_add_agents(pos, pref_vel)
+
+            # set target
+            target = (self.envsize/2 + circle_radius*cos(theta + pi),
+                      self.envsize/2 + circle_radius*sin(theta + pi))
+            target_pos = (target, target)
+            self.world["targets_pos"].append(target_pos)
+
+            self.world["action_weights"].append([0.0] * len(self.online_actions))
+            self.world["action_times"].append([0.0] * len(self.online_actions))
+
+            theta += theta_inc
+
+        self.update_pref_vel()
+
+        # border obstacle
+        self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
+                                 (self.envsize, self.envsize), (self.envsize, 0.0))
+
+        self.sim.processObstacles()
+
+    def _init_world_blocks(self):
+        # adjust environment size
+        self.envsize = 3 * self.radius * self.numAgents
+
+        x_pos = 1.5 * self.radius
+        y_pos = 1.5 * self.radius
+        y_inc = 3 * self.radius
+        # Add agents
+        for i in range(self.numAgents):
+            pos = (x_pos, y_pos)
+            angle = uniform(0, 2 * pi)
+            pref_vel = (cos(angle), sin(angle))
+            self._init_add_agents(pos, pref_vel)
+
+            # set target
+            target = (self.envsize - 1.5 * self.radius, y_pos)
+            target_pos = (target, target)
+            self.world["targets_pos"].append(target_pos)
+
+            self.world["action_weights"].append([0.0] * len(self.online_actions))
+            self.world["action_times"].append([0.0] * len(self.online_actions))
+
+            y_pos += y_inc
+
+        self.update_pref_vel()
+
+        # border obstacle
+        self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
+                                 (self.envsize, self.envsize), (self.envsize, 0.0))
+
+        # blocks
+        num_blocks = 4
+        block_size = self.envsize/(num_blocks*2)
+        for i in range(num_blocks):
+            pos = (uniform(block_size, self.envsize - block_size),
+                   uniform(0, self.envsize))
+            self._init_add_obstacles((pos[0] - block_size / 2, pos[1] - block_size / 2),
+                                     (pos[0] + block_size / 2, pos[1] - block_size / 2),
+                                     (pos[0] + block_size / 2, pos[1] + block_size / 2),
+                                     (pos[0] - block_size / 2, pos[1] + block_size / 2))
 
         self.sim.processObstacles()
 
@@ -493,5 +581,10 @@ class Collision_Avoidance_Sim():
 
 
 if __name__ == "__main__":
-    CA = Collision_Avoidance_Sim(10)
+    # congested
+    # crowd
+    # deadlock
+    # circle
+    # blocks
+    CA = Collision_Avoidance_Sim(20, "blocks")
     print(CA.run_sim(1))
