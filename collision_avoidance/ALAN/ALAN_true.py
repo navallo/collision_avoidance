@@ -139,7 +139,7 @@ class Collision_Avoidance_Sim():
 
     def _init_world_congested(self):
         # adjust environment size
-        self.envsize = 1.5 * self.radius * self.numAgents
+        self.envsize = sqrt(2 * self.radius * self.numAgents) * 3
         # Add agents
         for i in range(self.numAgents):
             pos = (uniform(self.envsize * 0.2, self.envsize), uniform(0, self.envsize))
@@ -176,7 +176,7 @@ class Collision_Avoidance_Sim():
 
     def _init_world_incoming(self):
         # adjust environment size
-        self.envsize = (1.5 * self.radius * self.numAgents) * 2
+        self.envsize = sqrt(2 * self.radius * self.numAgents) * 10
 
         # Add single agent
         pos = (0.1 * self.envsize, self.envsize / 2)
@@ -336,7 +336,7 @@ class Collision_Avoidance_Sim():
 
     def _init_world_deadlock(self):
         # adjust environment size
-        self.envsize = (self.radius * self.numAgents)*5
+        self.envsize = sqrt(2 * self.radius * self.numAgents) * 10
         # Add agents
         pos_y = self.envsize / 2
         pos_x = 0.2 * self.envsize
@@ -670,7 +670,8 @@ if __name__ == "__main__":
     # deadlock
     # circle
     # blocks
-    CA = Collision_Avoidance_Sim(100, "crowd", True)
-    print(CA.run_sim(0))
+    # incoming
+    CA = Collision_Avoidance_Sim(10, "incoming", True)
+    print(CA.run_sim(1))
     # CA.reset()
     # print(CA.run_sim(1))
