@@ -9,8 +9,8 @@ from gym.utils import seeding
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
-FLAG_DRAW = True
-# FLAG_DRAW = False
+# FLAG_DRAW = True
+FLAG_DRAW = False
 if FLAG_DRAW:
     from tkinter import *
 import rvo2
@@ -18,38 +18,30 @@ import rvo2
 from collision_avoidance.envs.utils import *
 
 #this is a simplified theta version (laser 0 always points to target)
+#add reward into observation
+
 class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, numAgents = 10, scenario="congested"):
+    def __init__(self, numAgents = 10):
         self.timeStep = 1/10
-        self.neighborDist = 5
-        self.maxNeighbors = 10
+        self.neighborDist = 1.5
+        self.maxNeighbors = 5
         self.timeHorizon = 1.5
-        self.radius = 0.5
+        self.radius = 0.5  # 2
         self.maxSpeed = 1
+        # self.velocity = 2#(1, 1)
         self.laser_num = 16
         self.circle_approx_num = 8
 
-        self.sim = rvo2.PyRVOSimulator(timeStep=self.timeStep,
-                                       neighborDist=self.neighborDist, 
-                                       maxNeighbors=self.maxNeighbors, 
-                                       timeHorizon=self.timeHorizon, 
-                                       timeHorizonObst=self.timeHorizon, 
-                                       radius=self.radius, 
-                                       maxSpeed=self.maxSpeed)
-
         self.numAgents = numAgents
-        self.scenario = scenario
 
         self.pixelsize = 500 #1000
-        self.envsize = self.radius*numAgents
-        self.play_speed = 4
+        self.framedelay = 30
+        self.envsize = 10
 
         self.step_count = 0
-        self.max_step = int((10/self.timeStep) * self.numAgents)
-
-        self.agents_done = [0] * self.numAgents
+        self.max_step = 1000
 
         #gym parmaters
         #Discrete action space
@@ -58,44 +50,30 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
         #Continuous action space
         # self.action_space = gym.spaces.Box(low=-pi, high=pi, shape=(1,))
-        self.observation_space = gym.spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(self.laser_num,))
+        self.observation_space = gym.spaces.Box(low=-self.neighborDist, high=self.neighborDist, shape=(self.laser_num+1,))
 
+        self.agents_done = [0] * self.numAgents
 
         # self.seed()
 
         self._init_comp_laser_rays()
         self._init_comp_circle_approx()
 
+        self.sim = rvo2.PyRVOSimulator(timeStep = self.timeStep,
+                                       neighborDist = self.neighborDist, 
+                                       maxNeighbors = self.maxNeighbors, 
+                                       timeHorizon = self.timeHorizon, 
+                                       timeHorizonObst = self.timeHorizon, 
+                                       radius = self.radius, 
+                                       maxSpeed = self.maxSpeed)
         self._init_world()
         if FLAG_DRAW:
             self._init_visworld()
             # self.draw_update()
 
         self.reset()
-        self.t_start = time.time()
 
-    def run_sim(self, mode=1):
-        # check if valid mode is given
-        if mode != 1 & mode != 0:
-            mode = 1
-
-        # step through simulation
-        self.t_start = time.time()
-        success = False
-        for i in range(self.max_step):
-            if mode == 1:
-                print('no online step')
-                # self.online_step()
-                return -1
-            else:
-                self.orca_step()
-            success = self.done_test()
-            if success:
-                break
-
-        return self.step_count*self.timeStep, success
-
-
+    #part of the initial
     def _init_world(self):
         self.world = {}
         self.world["agents_id"] = []
@@ -105,286 +83,43 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
         self.world["targets_pos"] = []
 
-        if self.scenario == "congested":
-            self._init_world_congested()
-        elif self.scenario == "incoming":
-            self._init_world_incoming()
-        elif self.scenario == "crowd":
-            self._init_world_crowd()
-        elif self.scenario == "circle":
-            self._init_world_circle()
-        elif self.scenario == "blocks":
-            self._init_world_blocks()
-        elif self.scenario == "deadlock":
-            self._init_world_deadlock()
-        else:
-            print(self.scenario, "is not a valid scenario")
-            return -1
+        #Add agents
+        for i in range(self.numAgents):
+            pos = (uniform(self.envsize * 0.5, self.envsize), uniform(0, self.envsize))
+            angle = uniform(0, 2 * pi)
+            pref_vel = (cos(angle), sin(angle))
+            self._init_add_agents(pos, pref_vel)
+
+            #set target
+            target_pos = (1.0,5.0)
+            self.world["targets_pos"].append(target_pos)
+
+        self.update_pref_vel()
+
         #Add lasers
         for i in range(self.numAgents):
             self.world["laserScans"].append([0.0] * (self.laser_num * 4))
 
-    def _init_world_congested(self):
-        # adjust environment size
-        self.envsize = sqrt(2 * self.radius * self.numAgents) * 3
-        # Add agents
+        '''
+        #Add lasers
         for i in range(self.numAgents):
-            pos = (uniform(self.envsize * 0.2, self.envsize), uniform(0, self.envsize))
-            angle = uniform(0, 2 * pi)
-            pref_vel = (cos(angle), sin(angle))
-            self._init_add_agents(pos, pref_vel)
+            laserScan = []
+            for j in range(self.laser_num):
+                laserScan.append([0, 0, 0, 0])
+            self.world["laserScans"].append(laserScan)
 
-            # set target
-            target_pos = ((0.1 * self.envsize - 1.0, self.envsize / 2),
-                          (0.1 * self.envsize - self.envsize, self.envsize / 2))
-            self.world["targets_pos"].append(target_pos)
+        #why add twice?
+        # for i in range(self.laser_num):
+            # self.world["laserScans"][0].append([0, 0, 0, 0])
+        '''
 
+        #Add an obstacle
+        #map wall
+        self._init_add_obstacles((-15.0,0.0),(-15.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
+        # self._init_add_obstacles((0.0,0.0),(0.0,self.envsize),(self.envsize,self.envsize),(self.envsize,0.0))
 
-        self.update_pref_vel()
-
-        # border obstacle
-        self._init_add_obstacles((-self.envsize, 0.0), (-self.envsize, self.envsize),
-                                 (self.envsize, self.envsize), (self.envsize, 0.0))
-
-        # internal obstacles
-        self._init_add_obstacles((0.1 * self.envsize, 0.0),
-                                 (0.1 * self.envsize + 0.5, 0.0),
-                                 (0.1 * self.envsize + 0.5, self.envsize / 2 - 1.25 * self.radius),
-                                 (0.1 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
-
-        self._init_add_obstacles((0.1 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.1 * self.envsize + 0.5, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.1 * self.envsize + 0.5, self.envsize),
-                                 (0.1 * self.envsize, self.envsize))
-
-        self.sim.processObstacles()
-
-    def _init_world_incoming(self):
-        # adjust environment size
-        self.envsize = sqrt(2 * self.radius * self.numAgents) * 10
-
-        # Add single agent
-        pos = (0.1 * self.envsize, self.envsize / 2)
-        angle = uniform(0, 2 * pi)
-        pref_vel = (cos(angle), sin(angle))
-        self._init_add_agents(pos, pref_vel)
-
-        # set target
-        target_pos = ((0.9 * self.envsize, self.envsize / 2),
-                      (0.9 * self.envsize, self.envsize / 2))
-        self.world["targets_pos"].append(target_pos)
-
-
-        # Add agents
-        numAgents_incoming = self.numAgents - 1
-        agent_block_len = sqrt(numAgents_incoming)
-        x_inc = 3*self.radius
-        y_inc = 2.1*self.radius
-        y_start = self.envsize / 2 - ((y_inc*agent_block_len) / 2)
-
-        x_pos = 0.8*self.envsize
-        y_pos = y_start
-        for i in range(numAgents_incoming):
-            pos = (x_pos, y_pos)
-            angle = uniform(0, 2 * pi)
-            pref_vel = (cos(angle), sin(angle))
-            self._init_add_agents(pos, pref_vel)
-
-            # set target
-            target_pos = ((x_pos - 0.7*self.envsize, y_pos),
-                          (x_pos - 0.7*self.envsize, y_pos))
-            self.world["targets_pos"].append(target_pos)
-
-
-            # increment position
-            y_pos += y_inc
-            if(y_pos > y_start + y_inc*agent_block_len):
-                x_pos += x_inc
-                y_pos = y_start
-
-
-        self.update_pref_vel()
-
-        # border obstacle
-        self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
-                                 (self.envsize, self.envsize), (self.envsize, 0.0))
-
-        self.sim.processObstacles()
-
-    def _init_world_crowd(self):
-        # adjust environment size
-        self.envsize = sqrt(2 * self.radius * self.numAgents) * 2
-        # Add agents
-        for i in range(self.numAgents):
-            pos = (uniform(0, self.envsize), uniform(0, self.envsize))
-            angle = uniform(0, 2 * pi)
-            pref_vel = (cos(angle), sin(angle))
-            self._init_add_agents(pos, pref_vel)
-
-            # set target
-            target = (uniform(0, self.envsize), uniform(0, self.envsize))
-            target_pos = (target, target)
-            self.world["targets_pos"].append(target_pos)
-
-
-        self.update_pref_vel()
-
-        # border obstacle
-        self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
-                                 (self.envsize, self.envsize), (self.envsize, 0.0))
-
-        self.sim.processObstacles()
-
-    def _init_world_circle(self):
-        # adjust environment size
-        circle_circumference = self.radius*3*self.numAgents
-        circle_radius = circle_circumference/(2*pi)
-        self.envsize = 2*circle_radius + 4*self.radius
-
-        theta_inc = (2*pi)/self.numAgents
-        theta = 0
-        # Add agents
-        for i in range(self.numAgents):
-            pos = (self.envsize/2 + circle_radius*cos(theta),
-                   self.envsize/2 + circle_radius*sin(theta))
-            angle = uniform(0, 2 * pi)
-            pref_vel = (cos(angle), sin(angle))
-            self._init_add_agents(pos, pref_vel)
-
-            # set target
-            target = (self.envsize/2 + circle_radius*cos(theta + pi),
-                      self.envsize/2 + circle_radius*sin(theta + pi))
-            target_pos = (target, target)
-            self.world["targets_pos"].append(target_pos)
-
-
-            theta += theta_inc
-
-        self.update_pref_vel()
-
-        # border obstacle
-        self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
-                                 (self.envsize, self.envsize), (self.envsize, 0.0))
-
-        self.sim.processObstacles()
-
-    def _init_world_blocks(self):
-        # adjust environment size
-        self.envsize = 3 * self.radius * self.numAgents
-
-        x_pos = 1.5 * self.radius
-        y_pos = 1.5 * self.radius
-        y_inc = 3 * self.radius
-        # Add agents
-        for i in range(self.numAgents):
-            pos = (x_pos, y_pos)
-            angle = uniform(0, 2 * pi)
-            pref_vel = (cos(angle), sin(angle))
-            self._init_add_agents(pos, pref_vel)
-
-            # set target
-            target = (self.envsize - 1.5 * self.radius, y_pos)
-            target_pos = (target, target)
-            self.world["targets_pos"].append(target_pos)
-
-
-            y_pos += y_inc
-
-        self.update_pref_vel()
-
-        # border obstacle
-        self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
-                                 (self.envsize, self.envsize), (self.envsize, 0.0))
-
-        # blocks
-        num_blocks = 4
-        block_size = self.envsize/(num_blocks*2)
-        for i in range(num_blocks):
-            pos = (uniform(block_size, self.envsize - block_size),
-                   uniform(0, self.envsize))
-            self._init_add_obstacles((pos[0] - block_size / 2, pos[1] - block_size / 2),
-                                     (pos[0] + block_size / 2, pos[1] - block_size / 2),
-                                     (pos[0] + block_size / 2, pos[1] + block_size / 2),
-                                     (pos[0] - block_size / 2, pos[1] + block_size / 2))
-
-        self.sim.processObstacles()
-
-    def _init_world_deadlock(self):
-        # adjust environment size
-        self.envsize = sqrt(2 * self.radius * self.numAgents) * 10
-        # Add agents
-        pos_y = self.envsize / 2
-        pos_x = 0.2 * self.envsize
-        x_inc = -3 * self.radius
-        for i in range(0, int(self.numAgents / 2)):
-            pos = (pos_x, pos_y)
-            angle = uniform(0, 2 * pi)
-            pref_vel = (cos(angle), sin(angle))
-            self._init_add_agents(pos, pref_vel)
-
-            # set target
-            target_pos = ((0.9 * self.envsize, self.envsize / 2),
-                          (0.9 * self.envsize + self.envsize, self.envsize / 2))
-            self.world["targets_pos"].append(target_pos)
-
-            pos_x += x_inc
-
-        pos_x = 0.8 * self.envsize
-        x_inc = 3 * self.radius
-        for i in range(int(self.numAgents / 2), self.numAgents):
-            pos = (pos_x, pos_y)
-            angle = uniform(0, 2 * pi)
-            pref_vel = (cos(angle), sin(angle))
-            self._init_add_agents(pos, pref_vel)
-
-            # set target
-            target_pos = ((0.1 * self.envsize, self.envsize / 2),
-                          (0.1 * self.envsize - self.envsize, self.envsize / 2))
-            self.world["targets_pos"].append(target_pos)
-
-            pos_x += x_inc
-
-        self.update_pref_vel()
-
-        # border obstacle
-        self._init_add_obstacles((-self.envsize, 0.0), (-self.envsize, self.envsize),
-                                 (2 * self.envsize, self.envsize), (2 * self.envsize, 0.0))
-
-        # internal obstacles
-
-        # left funnel
-        self._init_add_obstacles((0.0, 0.0),
-                                 (0.0 + 0.5, 0.0),
-                                 (0.2 * self.envsize + 0.5, self.envsize / 2 - 1.25 * self.radius),
-                                 (0.2 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
-
-        self._init_add_obstacles((0.0, self.envsize),
-                                 (0.2 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.2 * self.envsize + 0.5, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.0 + 0.5, self.envsize))
-
-        # right funnel
-        self._init_add_obstacles((self.envsize - 0.5, 0.0),
-                                 (self.envsize, 0.0),
-                                 (0.8 * self.envsize, self.envsize / 2 - 1.25 * self.radius),
-                                 (0.8 * self.envsize - 0.5, self.envsize / 2 - 1.25 * self.radius))
-
-        self._init_add_obstacles((self.envsize - 0.5, self.envsize),
-                                 (0.8 * self.envsize - 0.5, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.8 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
-                                 (self.envsize, self.envsize))
-
-        # tube
-        self._init_add_obstacles((0.2 * self.envsize, (self.envsize / 2 - 1.25 * self.radius) - 0.5),
-                                 (0.8 * self.envsize, (self.envsize / 2 - 1.25 * self.radius) - 0.5),
-                                 (0.8 * self.envsize, self.envsize / 2 - 1.25 * self.radius),
-                                 (0.2 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
-
-        self._init_add_obstacles((0.2 * self.envsize, (self.envsize / 2 + 1.25 * self.radius) + 0.5),
-                                 (0.2 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.8 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.8 * self.envsize, (self.envsize / 2 + 1.25 * self.radius) + 0.5))
-
+        self._init_add_obstacles((2.0,0.0),(2.5,0.0),(2.5,4.4),(2.0,4.4))
+        self._init_add_obstacles((2.0,5.6),(2.5,5.6),(2.5,10.0),(2.0,10.0))
         self.sim.processObstacles()
 
     def _init_add_agents(self, pos, pref_vel):
@@ -420,7 +155,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
     def comp_pref_vel(self, agent_id):
         pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
-        target_pos = self.world["targets_pos"][agent_id][0]
+        target_pos = self.world["targets_pos"][agent_id]
         angle = np.arctan2(target_pos[1]-pos[1],target_pos[0]-pos[0])
         pref_vel = (cos(angle), sin(angle))
 
@@ -429,7 +164,6 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
     #part of the initial
     def _init_visworld(self):
         self.win = Tk()
-        self.win.title(self.scenario + ": " + str(self.numAgents))
         self.canvas = Canvas(self.win, width=self.pixelsize, height=self.pixelsize, background="#eaeaea")
         self.canvas.pack()
 
@@ -441,22 +175,19 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
         self.visWorld["bot_laser_scan_lines_id"] = []
         #self.visWorld["bot_laser_scan_lines_id"].append([])
 
-        #ADD targets
-        self.visWorld["targets_id"] = []
-        for i in range(len(self.world["targets_pos"])):
-            self.visWorld["targets_id"].append(self.canvas.create_oval(	
-                0, 0, self.radius, self.radius, outline='', fill="blue"))
-
         # ADD Agents
         for i in range(len(self.world["agents_id"])):
-            self.visWorld["bot_circles_id"].append(self.canvas.create_oval( 
-                -self.radius, -self.radius, self.radius, self.radius, outline='', fill="yellow"))
-            self.visWorld["vel_lines_id"].append(self.canvas.create_line(		
-                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="red"))
-            self.visWorld["pref_vel_lines_id"].append(self.canvas.create_line(	
-                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="green"))
+            if i == 0:
+                self.visWorld["bot_circles_id"].append(self.canvas.create_oval( \
+                    -self.radius, -self.radius, self.radius, self.radius, outline='', fill="#ff5733"))
+            else:
+                self.visWorld["bot_circles_id"].append(self.canvas.create_oval( \
+                    -self.radius, -self.radius, self.radius, self.radius, outline='', fill="#f8b739"))
+            self.visWorld["vel_lines_id"].append(self.canvas.create_line(		\
+                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="#f30067"))
+            self.visWorld["pref_vel_lines_id"].append(self.canvas.create_line(	\
+                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="#7bc67b"))
 
-        '''
         # ADD Lasers
         # only one laser scan for now
         # for i in range(0, self.laser_num):
@@ -469,7 +200,6 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
                 laserScan.append(self.canvas.create_line(
                     0, 0, self.radius, self.radius, width=2, fill='purple'))
             self.visWorld["bot_laser_scan_lines_id"].append(laserScan)
-        '''
 
         #ADD Obstacles
         self.visWorld["obstacles_id"] = []
@@ -477,19 +207,26 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             ids = self.world["obstacles_vertex_ids"][i]
             four_vertex_pos = [self.sim.getObstacleVertex(j) for j in ids]
             if i == 0:
-                self.visWorld["obstacles_id"].append(self.canvas.create_polygon (
+                self.visWorld["obstacles_id"].append(self.canvas.create_polygon (\
                     four_vertex_pos[0][0], four_vertex_pos[0][1],
                     four_vertex_pos[1][0], four_vertex_pos[1][1],
                     four_vertex_pos[2][0], four_vertex_pos[2][1],
                     four_vertex_pos[3][0], four_vertex_pos[3][1],
                     fill=""))
             else:
-                self.visWorld["obstacles_id"].append(self.canvas.create_polygon(
+                self.visWorld["obstacles_id"].append(self.canvas.create_polygon(\
                     four_vertex_pos[0][0], four_vertex_pos[0][1],
                     four_vertex_pos[1][0], four_vertex_pos[1][1],
                     four_vertex_pos[2][0], four_vertex_pos[2][1],
                     four_vertex_pos[3][0], four_vertex_pos[3][1],
-                    fill="black"))
+                    fill="#444444"))
+
+        #ADD targets
+        self.visWorld["targets_id"] = []
+        for i in range(len(self.world["targets_pos"])):
+            self.visWorld["targets_id"].append(self.canvas.create_oval(	\
+                0, 0, self.radius, self.radius, outline='', fill="#448ef6"))
+
 
     def _get_obs(self):
         for i in range(self.numAgents):
@@ -615,13 +352,12 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
         for i in range(self.numAgents):
             agent_id = self.world["agents_id"][i]
             if self.agents_done[i] == 0:
-                # check if agent has reached goal
                 pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
-                t_pos = self.world["targets_pos"][agent_id][0]
-                if sqrt((pos[0] - t_pos[0])**2 + (pos[1] - t_pos[1])**2) < 2 * self.radius:
+                # target_pos = self.world["targets_pos"][agent_id]
+                # target_dist = (target_pos[1]-pos[1])**2 + (target_pos[0]-pos[0])**2
+                if pos[0] < 2.0:
                     self.agents_done[agent_id] = 1
-                    self.world["targets_pos"][agent_id] = (self.world["targets_pos"][agent_id][1],
-                                                           self.world["targets_pos"][agent_id][1])
+                    self.world["targets_pos"][agent_id] = (-10.0,5.0)
         if 0 not in self.agents_done:
             return True
         else:
@@ -661,11 +397,13 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
             R_goal = np.dot(orca_vel, pref_vel)
             R_greedy = np.dot(rl_vel, pref_vel)
             R_polite = np.dot(orca_vel, rl_vel)
-            # self.gym_rewards['agent_' + str(i)] = scale*R_goal + (1-scale)*R_polite
             self.gym_rewards['agent_' + str(i)] = 0.5*R_goal + 0.5*R_greedy + 2*R_polite
             self.gym_rewards['agent_' + str(i)] += -0.2 if self.agents_done[agent_id] == 0 else 0
 
         self.gym_obs = self._get_obs()
+        #add rewards into observation
+        for key in self.gym_obs:
+            self.gym_obs[key].append(R_polite)
 
         self.gym_dones['__all__'] = self.done_test()
         self.step_count += 1
@@ -705,60 +443,21 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
 
 
     #not used in RL, just for orca visualization
-    def orca_step(self):
+    def orca_step(self, action):
         self.sim.doStep()
         self.update_pref_vel()
-        # self.gym_obs = self._get_obs()
+        self.gym_obs = self._get_obs()
 
-        # pref_vel = np.array(self.comp_pref_vel(self.world["agents_id"][0]))
+        pref_vel = np.array(self.comp_pref_vel(self.world["agents_id"][0]))
 
         # need to update for multiple robots
         # need to move this into render() or step()
-        # self.world["laserScans"][0] = self.rotate_laser_scan(self.gym_obs['agent_0'], pref_vel)
-        # if self.done_test() == True:
-            # print('episode_steps,', self.step_count)
-        if FLAG_DRAW:
-            self.draw_update()
-
-        self.step_count += 1
-
-    def reset(self, numAgents=50, scenario="crowd"):
-        # ORCA config
-        self.sim = rvo2.PyRVOSimulator(timeStep=self.timeStep,
-                                       neighborDist=self.neighborDist,
-                                       maxNeighbors=self.maxNeighbors,
-                                       timeHorizon=self.timeHorizon,
-                                       timeHorizonObst=self.timeHorizon,
-                                       radius=self.radius,
-                                       maxSpeed=self.maxSpeed)
+        self.world["laserScans"][0] = self.rotate_laser_scan(self.gym_obs['agent_0'], pref_vel)
+        if self.done_test() == True:
+            print('episode_steps,', self.step_count)
+        self.draw_update()
 
 
-        # world config
-        self.step_count = 0
-        self.agents_done = [0] * self.numAgents
-
-        self._init_world()
-
-        #clear gym parameters
-        self.gym_obs = {}
-        self.gym_rewards = {}
-        self.gym_dones = {'__all__':False}
-        self.gym_infos = {}
-        #according to https://github.com/ray-project/ray/blob/master/python/ray/rllib/env/multi_agent_env.py
-        #each agent needs a string name
-        for i in range(self.numAgents):
-            self.gym_obs['agent_'+str(i)] = [0.0] * (4 + self.laser_num * 4)
-            self.gym_rewards['agent_'+str(i)] = 0
-            self.gym_dones['agent_'+str(i)] = False
-            self.gym_infos['agent_'+str(i)] = {}
-
-        if FLAG_DRAW:
-            self.win.destroy()
-            self._init_visworld()
-
-        return self._get_obs()
-
-    '''
     def reset(self):
         #clear gym parameters
         self.gym_obs = {}
@@ -769,7 +468,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
         #according to https://github.com/ray-project/ray/blob/master/python/ray/rllib/env/multi_agent_env.py
         #each agent needs a string name
         for i in range(self.numAgents):
-            self.gym_obs['agent_'+str(i)] = [0.0] * (4 + self.laser_num * 4)
+            self.gym_obs['agent_'+str(i)] = [0.0] * (self.laser_num+1)
             self.gym_rewards['agent_'+str(i)] = 0
             self.gym_dones['agent_'+str(i)] = False
             self.gym_infos['agent_'+str(i)] = {}
@@ -783,8 +482,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
         self.step_count = 0
         self.agents_done = [0] * self.numAgents
 
-        return self._get_obs()
-    '''
+        return self.gym_obs
 
     #gym native render, should be useless
     def render(self, mode='human'):
@@ -803,15 +501,7 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
     def draw_world(self):
         scale = self.pixelsize / self.envsize
 
-        # draw targets
-        for i in range(len(self.world["targets_pos"])):
-            self.canvas.coords(self.visWorld["targets_id"][i],
-                        scale * (self.world["targets_pos"][i][0][0] - self.radius),
-                        scale * (self.world["targets_pos"][i][0][1] - self.radius),
-                        scale * (self.world["targets_pos"][i][0][0] + self.radius),
-                        scale * (self.world["targets_pos"][i][0][1] + self.radius))
-
-        # draw agents
+        #draw agents
         for i in range(len(self.world["agents_id"])):
             self.canvas.coords(self.visWorld["bot_circles_id"][i],
                         scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] - self.radius),
@@ -832,11 +522,8 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
                                 self.sim.getAgentPrefVelocity(self.world["agents_id"][i])[0]),
                         scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] + 2 * self.radius *
                                 self.sim.getAgentPrefVelocity(self.world["agents_id"][i])[1]))
-            # update color of agent
-            if self.agents_done[i] == 1:
-                self.canvas.itemconfig(self.visWorld["bot_circles_id"][i], fill="purple")
 
-        # draw obstacles
+        #draw obstacles
         for i in range(len(self.world["obstacles_vertex_ids"])):
             ids = self.world["obstacles_vertex_ids"][i]
             self.canvas.coords(self.visWorld["obstacles_id"][i],
@@ -849,6 +536,13 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
                         scale * self.sim.getObstacleVertex(ids[3])[0],
                         scale * self.sim.getObstacleVertex(ids[3])[1])
 
+        #draw targets
+        for i in range(len(self.world["targets_pos"])):
+            self.canvas.coords(self.visWorld["targets_id"][i],
+                        scale * (self.world["targets_pos"][i][0] - self.radius),
+                        scale * (self.world["targets_pos"][i][1] - self.radius),
+                        scale * (self.world["targets_pos"][i][0] + self.radius),
+                        scale * (self.world["targets_pos"][i][1] + self.radius))
 
         '''
         #draw Lasers
@@ -869,19 +563,10 @@ class Collision_Avoidance_Env(gym.Env, MultiAgentEnv):
         self.draw_world()
         self.win.update_idletasks()
         self.win.update()
-        # time.sleep(self.timeStep)
-        desired_time = self.step_count*self.timeStep
-        sleep_time = desired_time/self.play_speed - (time.time() - self.t_start)
-        if sleep_time > 0:
-            time.sleep(sleep_time)
+        time.sleep(self.timeStep)
 
 
 if __name__ == "__main__":
-    # congested
-    # incoming
-    # crowd
-    # deadlock
-    # circle
-    # blocks
-    CA = Collision_Avoidance_Env(20, "incoming")
-    print(CA.run_sim(0))
+    CA = Collision_Avoidance_Env()
+    for i in range(2000):
+        CA.orca_step((0,0))

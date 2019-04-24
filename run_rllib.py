@@ -28,11 +28,13 @@ from collision_avoidance.envs.collision_avoidence_env import Collision_Avoidance
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--num-agents", type=int, default=10)
+parser.add_argument("--scenario", type=str, default="circle")
 parser.add_argument("--num-policies", type=int, default=1)
 parser.add_argument("--num-iters", type=int, default=1000)
 
+# python run_rllib.py --num-agents 10 --scenario circle
 
-class CustomModel1(Model):
+class CustomModel(Model):
     def _build_layers_v2(self, input_dict, num_outputs, options):
         # Example of (optional) weight sharing between two different policies.
         # Here, we share the variables defined in the 'shared' variable scope
@@ -51,31 +53,13 @@ class CustomModel1(Model):
             last_layer, num_outputs, activation_fn=None, scope="fc_out")
         return output, last_layer
 
-'''
-class CustomModel2(Model):
-    def _build_layers_v2(self, input_dict, num_outputs, options):
-        # Weights shared with CustomModel1
-        with tf.variable_scope(
-                tf.VariableScope(tf.AUTO_REUSE, "shared"),
-                reuse=tf.AUTO_REUSE,
-                auxiliary_name_scope=False):
-            last_layer = slim.fully_connected(
-                input_dict["obs"], 64, activation_fn=tf.nn.relu, scope="fc1")
-        last_layer = slim.fully_connected(
-            last_layer, 64, activation_fn=tf.nn.relu, scope="fc2")
-        output = slim.fully_connected(
-            last_layer, num_outputs, activation_fn=None, scope="fc_out")
-        return output, last_layer
-'''
-
-
 if __name__ == "__main__":
     args = parser.parse_args()
     ray.init()
 
     # Simple environment with `num_agents` independent entities
-    register_env("collision_avoidance", lambda _: Collision_Avoidance_Env(args.num_agents))
-    ModelCatalog.register_custom_model("model1", CustomModel1)
+    register_env("collision_avoidance", lambda _: Collision_Avoidance_Env(args.num_agents,args.scenario))
+    ModelCatalog.register_custom_model("model", CustomModel)
     # ModelCatalog.register_custom_model("model2", CustomModel2)
     single_env = gym.make('collision_avoidance-v0')
     obs_space = single_env.observation_space
@@ -85,10 +69,8 @@ if __name__ == "__main__":
     def gen_policy(i):
         config = {
             "model": {
-                # "custom_model": ["model1", "model2"][i % 2],
-                "custom_model": "model1"
+                "custom_model": "model"
             },
-            # "gamma": random.choice([0.95, 0.99]),
             "gamma": 0.95,
         }
         return (None, obs_space, act_space, config)
@@ -127,5 +109,5 @@ if __name__ == "__main__":
         # checkpoint_at_end=True,
         checkpoint_freq = 3,
         resume="prompt",
-        local_dir="./rllib_results3"
+        local_dir="./results/"+args.scenario
     )
