@@ -22,7 +22,7 @@ class Collision_Avoidance_Sim():
     def __init__(self, numAgents=50, scenario="crowd", visualize=True):
 
         # ORCA config
-        self.timeStep = 1/10.
+        self.timeStep = 1/60.
         self.neighborDist = 5#1.5
         self.maxNeighbors = 10#5
         self.timeHorizon = 1.5
@@ -57,7 +57,8 @@ class Collision_Avoidance_Sim():
         self.envsize = self.radius*numAgents
 
         self.step_count = 0
-        self.max_step = 2000
+        self.max_step = int((10/self.timeStep) * self.numAgents)
+        print(self.max_step)
 
         self.agents_done = [0] * self.numAgents
 
@@ -280,8 +281,8 @@ class Collision_Avoidance_Sim():
         self.envsize = (self.radius * self.numAgents)*5
         # Add agents
         pos_y = self.envsize / 2
-        pos_x = 0.3 * self.envsize
-        x_inc = -1.5 * self.radius
+        pos_x = 0.2 * self.envsize
+        x_inc = -3 * self.radius
         for i in range(0, int(self.numAgents / 2)):
             pos = (pos_x, pos_y)
             angle = uniform(0, 2 * pi)
@@ -297,8 +298,8 @@ class Collision_Avoidance_Sim():
             self.world["action_times"].append([0.0] * len(self.online_actions))
             pos_x += x_inc
 
-        pos_x = 0.7 * self.envsize
-        x_inc = 1.5 * self.radius
+        pos_x = 0.8 * self.envsize
+        x_inc = 3 * self.radius
         for i in range(int(self.numAgents / 2), self.numAgents):
             pos = (pos_x, pos_y)
             angle = uniform(0, 2 * pi)
@@ -325,35 +326,35 @@ class Collision_Avoidance_Sim():
         # left funnel
         self._init_add_obstacles((0.0, 0.0),
                                  (0.0 + 0.5, 0.0),
-                                 (0.3 * self.envsize + 0.5, self.envsize / 2 - 1.25 * self.radius),
-                                 (0.3 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
+                                 (0.2 * self.envsize + 0.5, self.envsize / 2 - 1.25 * self.radius),
+                                 (0.2 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
 
         self._init_add_obstacles((0.0, self.envsize),
-                                 (0.3 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.3 * self.envsize + 0.5, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.2 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.2 * self.envsize + 0.5, self.envsize / 2 + 1.25 * self.radius),
                                  (0.0 + 0.5, self.envsize))
 
         # right funnel
         self._init_add_obstacles((self.envsize - 0.5, 0.0),
                                  (self.envsize, 0.0),
-                                 (0.7 * self.envsize, self.envsize / 2 - 1.25 * self.radius),
-                                 (0.7 * self.envsize - 0.5, self.envsize / 2 - 1.25 * self.radius))
+                                 (0.8 * self.envsize, self.envsize / 2 - 1.25 * self.radius),
+                                 (0.8 * self.envsize - 0.5, self.envsize / 2 - 1.25 * self.radius))
 
         self._init_add_obstacles((self.envsize - 0.5, self.envsize),
-                                 (0.7 * self.envsize - 0.5, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.7 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.8 * self.envsize - 0.5, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.8 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
                                  (self.envsize, self.envsize))
 
         # tube
-        self._init_add_obstacles((0.3 * self.envsize, (self.envsize / 2 - 1.25 * self.radius) - 0.5),
-                                 (0.7 * self.envsize, (self.envsize / 2 - 1.25 * self.radius) - 0.5),
-                                 (0.7 * self.envsize, self.envsize / 2 - 1.25 * self.radius),
-                                 (0.3 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
+        self._init_add_obstacles((0.2 * self.envsize, (self.envsize / 2 - 1.25 * self.radius) - 0.5),
+                                 (0.8 * self.envsize, (self.envsize / 2 - 1.25 * self.radius) - 0.5),
+                                 (0.8 * self.envsize, self.envsize / 2 - 1.25 * self.radius),
+                                 (0.2 * self.envsize, self.envsize / 2 - 1.25 * self.radius))
 
-        self._init_add_obstacles((0.3 * self.envsize, (self.envsize / 2 + 1.25 * self.radius) + 0.5),
-                                 (0.3 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.7 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
-                                 (0.7 * self.envsize, (self.envsize / 2 + 1.25 * self.radius) + 0.5))
+        self._init_add_obstacles((0.2 * self.envsize, (self.envsize / 2 + 1.25 * self.radius) + 0.5),
+                                 (0.2 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.8 * self.envsize, self.envsize / 2 + 1.25 * self.radius),
+                                 (0.8 * self.envsize, (self.envsize / 2 + 1.25 * self.radius) + 0.5))
 
         self.sim.processObstacles()
 
@@ -611,7 +612,7 @@ if __name__ == "__main__":
     # deadlock
     # circle
     # blocks
-    CA = Collision_Avoidance_Sim(50, "circle", True)
+    CA = Collision_Avoidance_Sim(20, "congested", True)
     print(CA.run_sim(1))
-    CA.reset()
-    print(CA.run_sim(1))
+    # CA.reset()
+    # print(CA.run_sim(1))
