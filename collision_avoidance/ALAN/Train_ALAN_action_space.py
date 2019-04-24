@@ -6,7 +6,8 @@ class MCMC_train():
         self.scenario = scenario
         self.numRounds = numRounds
 
-        simulator = Collision_Avoidance_Sim(self.numAgents, self.scenario, False)
+        simulator = Collision_Avoidance_Sim(self.numAgents, self.scenario, True)
+        simulator.run_sim(1)
 
         # init action set
 

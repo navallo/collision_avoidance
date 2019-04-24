@@ -132,6 +132,8 @@ class Collision_Avoidance_Sim():
             self._init_world_circle()
         elif self.scenario == "crowd":
             self._init_world_crowd()
+        elif self.scenario == "incoming":
+            self._init_world_incoming()
         else:
             print(self.scenario, "is not a valid scenario")
 
@@ -169,6 +171,62 @@ class Collision_Avoidance_Sim():
                                  (0.1 * self.envsize + 0.5, self.envsize / 2 + 1.25 * self.radius),
                                  (0.1 * self.envsize + 0.5, self.envsize),
                                  (0.1 * self.envsize, self.envsize))
+
+        self.sim.processObstacles()
+
+    def _init_world_incoming(self):
+        # adjust environment size
+        self.envsize = (1.5 * self.radius * self.numAgents) * 2
+
+        # Add single agent
+        pos = (0.1 * self.envsize, self.envsize / 2)
+        angle = uniform(0, 2 * pi)
+        pref_vel = (cos(angle), sin(angle))
+        self._init_add_agents(pos, pref_vel)
+
+        # set target
+        target_pos = ((0.9 * self.envsize, self.envsize / 2),
+                      (0.9 * self.envsize, self.envsize / 2))
+        self.world["targets_pos"].append(target_pos)
+
+        self.world["action_weights"].append([0.0] * len(self.online_actions))
+        self.world["action_times"].append([0.0] * len(self.online_actions))
+
+        # Add agents
+        numAgents_incoming = self.numAgents - 1
+        agent_block_len = sqrt(numAgents_incoming)
+        x_inc = 3*self.radius
+        y_inc = 2.1*self.radius
+        y_start = self.envsize / 2 - ((y_inc*agent_block_len) / 2)
+
+        x_pos = 0.8*self.envsize
+        y_pos = y_start
+        for i in range(numAgents_incoming):
+            pos = (x_pos, y_pos)
+            angle = uniform(0, 2 * pi)
+            pref_vel = (cos(angle), sin(angle))
+            self._init_add_agents(pos, pref_vel)
+
+            # set target
+            target_pos = ((x_pos - 0.7*self.envsize, y_pos),
+                          (x_pos - 0.7*self.envsize, y_pos))
+            self.world["targets_pos"].append(target_pos)
+
+            self.world["action_weights"].append([0.0] * len(self.online_actions))
+            self.world["action_times"].append([0.0] * len(self.online_actions))
+
+            # increment position
+            y_pos += y_inc
+            if(y_pos > y_start + y_inc*agent_block_len):
+                x_pos += x_inc
+                y_pos = y_start
+
+
+        self.update_pref_vel()
+
+        # border obstacle
+        self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
+                                 (self.envsize, self.envsize), (self.envsize, 0.0))
 
         self.sim.processObstacles()
 
@@ -612,7 +670,7 @@ if __name__ == "__main__":
     # deadlock
     # circle
     # blocks
-    CA = Collision_Avoidance_Sim(20, "congested", True)
-    print(CA.run_sim(1))
+    CA = Collision_Avoidance_Sim(21, "incoming", True)
+    print(CA.run_sim(0))
     # CA.reset()
     # print(CA.run_sim(1))
