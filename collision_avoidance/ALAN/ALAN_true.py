@@ -97,6 +97,7 @@ class Collision_Avoidance_Sim():
 
         # self._init_world_congestion()
         self._init_world_deadlock()
+        # self._init_world_crowd()
 
     def _init_world_congestion(self):
         # adjust environment size
@@ -109,7 +110,8 @@ class Collision_Avoidance_Sim():
             self._init_add_agents(pos, pref_vel)
 
             # set target
-            target_pos = ((0.1 * self.envsize - 1.0, self.envsize / 2), (0.1 * self.envsize - self.envsize, self.envsize / 2))
+            target_pos = ((0.1 * self.envsize - 1.0, self.envsize / 2),
+                          (0.1 * self.envsize - self.envsize, self.envsize / 2))
             self.world["targets_pos"].append(target_pos)
 
             self.world["action_weights"].append([0.0] * len(self.online_actions))
@@ -134,6 +136,32 @@ class Collision_Avoidance_Sim():
 
         self.sim.processObstacles()
 
+    def _init_world_crowd(self):
+        # adjust environment size
+        self.envsize = (self.radius * self.numAgents) / 2
+        # Add agents
+        for i in range(self.numAgents):
+            pos = (uniform(0, self.envsize), uniform(0, self.envsize))
+            angle = uniform(0, 2 * pi)
+            pref_vel = (cos(angle), sin(angle))
+            self._init_add_agents(pos, pref_vel)
+
+            # set target
+            target = (uniform(0, self.envsize), uniform(0, self.envsize))
+            target_pos = (target, target)
+            self.world["targets_pos"].append(target_pos)
+
+            self.world["action_weights"].append([0.0] * len(self.online_actions))
+            self.world["action_times"].append([0.0] * len(self.online_actions))
+
+        self.update_pref_vel()
+
+        # border obstacle
+        self._init_add_obstacles((0.0, 0.0), (0.0, self.envsize),
+                                 (self.envsize, self.envsize), (self.envsize, 0.0))
+
+        self.sim.processObstacles()
+
     def _init_world_deadlock(self):
         # adjust environment size
         self.envsize = (self.radius * self.numAgents)*5
@@ -148,8 +176,8 @@ class Collision_Avoidance_Sim():
             self._init_add_agents(pos, pref_vel)
 
             # set target
-            target_pos = ((0.7 * self.envsize, self.envsize / 2),
-                          (0.7 * self.envsize + self.envsize, self.envsize / 2))
+            target_pos = ((0.9 * self.envsize, self.envsize / 2),
+                          (0.9 * self.envsize + self.envsize, self.envsize / 2))
             self.world["targets_pos"].append(target_pos)
 
             self.world["action_weights"].append([0.0] * len(self.online_actions))
@@ -165,8 +193,8 @@ class Collision_Avoidance_Sim():
             self._init_add_agents(pos, pref_vel)
 
             # set target
-            target_pos = ((0.3 * self.envsize, self.envsize / 2),
-                          (0.3 * self.envsize - self.envsize, self.envsize / 2))
+            target_pos = ((0.1 * self.envsize, self.envsize / 2),
+                          (0.1 * self.envsize - self.envsize, self.envsize / 2))
             self.world["targets_pos"].append(target_pos)
 
             self.world["action_weights"].append([0.0] * len(self.online_actions))
@@ -267,18 +295,20 @@ class Collision_Avoidance_Sim():
         self.visWorld["vel_lines_id"] = []
         self.visWorld["pref_vel_lines_id"] = []
 
+        # ADD targets
+        self.visWorld["targets_id"] = []
+        for i in range(len(self.world["targets_pos"])):
+            self.visWorld["targets_id"].append(self.canvas.create_oval(
+                0, 0, self.radius, self.radius, outline='', fill="blue"))
+
         # ADD Agents
         for i in range(len(self.world["agents_id"])):
-            if i == 0:
-                self.visWorld["bot_circles_id"].append(self.canvas.create_oval(
-                    -self.radius, -self.radius, self.radius, self.radius, outline='', fill="#ff5733"))
-            else:
-                self.visWorld["bot_circles_id"].append(self.canvas.create_oval(
-                    -self.radius, -self.radius, self.radius, self.radius, outline='', fill="#f8b739"))
+            self.visWorld["bot_circles_id"].append(self.canvas.create_oval(
+                -self.radius, -self.radius, self.radius, self.radius, outline='', fill="yellow"))
             self.visWorld["vel_lines_id"].append(self.canvas.create_line(
-                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="#f30067"))
+                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="red"))
             self.visWorld["pref_vel_lines_id"].append(self.canvas.create_line(
-                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="#7bc67b"))
+                    0, 0, self.radius, self.radius, arrow=LAST, width=2, fill="green"))
 
         #ADD Obstacles
         self.visWorld["obstacles_id"] = []
@@ -298,13 +328,7 @@ class Collision_Avoidance_Sim():
                     four_vertex_pos[1][0], four_vertex_pos[1][1],
                     four_vertex_pos[2][0], four_vertex_pos[2][1],
                     four_vertex_pos[3][0], four_vertex_pos[3][1],
-                    fill="#444444"))
-
-        #ADD targets
-        self.visWorld["targets_id"] = []
-        for i in range(len(self.world["targets_pos"])):
-            self.visWorld["targets_id"].append(self.canvas.create_oval(
-                0, 0, self.radius, self.radius, outline='', fill="#448ef6"))
+                    fill="black"))
 
     def done_test(self):
         for i in range(self.numAgents):
@@ -313,7 +337,7 @@ class Collision_Avoidance_Sim():
                 # check if agent has reached goal
                 pos = self.sim.getAgentPosition(self.world["agents_id"][agent_id])
                 t_pos = self.world["targets_pos"][agent_id][0]
-                if sqrt((pos[0] - t_pos[0])**2 + (pos[1] - t_pos[1])**2) < self.radius:
+                if sqrt((pos[0] - t_pos[0])**2 + (pos[1] - t_pos[1])**2) < 2 * self.radius:
                     self.agents_done[agent_id] = 1
                     self.world["targets_pos"][agent_id] = (self.world["targets_pos"][agent_id][1],
                                                            self.world["targets_pos"][agent_id][1])
@@ -410,7 +434,15 @@ class Collision_Avoidance_Sim():
     def draw_world(self):
         scale = self.pixelsize / self.envsize
 
-        #draw agents
+        # draw targets
+        for i in range(len(self.world["targets_pos"])):
+            self.canvas.coords(self.visWorld["targets_id"][i],
+                               scale * (self.world["targets_pos"][i][0][0] - self.radius),
+                               scale * (self.world["targets_pos"][i][0][1] - self.radius),
+                               scale * (self.world["targets_pos"][i][0][0] + self.radius),
+                               scale * (self.world["targets_pos"][i][0][1] + self.radius))
+
+        # draw agents
         for i in range(len(self.world["agents_id"])):
             self.canvas.coords(self.visWorld["bot_circles_id"][i],
                         scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[0] - self.radius),
@@ -431,8 +463,11 @@ class Collision_Avoidance_Sim():
                                 self.sim.getAgentPrefVelocity(self.world["agents_id"][i])[0]),
                         scale * (self.sim.getAgentPosition(self.world["agents_id"][i])[1] + 2 * self.radius *
                                 self.sim.getAgentPrefVelocity(self.world["agents_id"][i])[1]))
+            # update color of agent
+            if self.agents_done[i] == 1:
+                self.canvas.itemconfig(self.visWorld["bot_circles_id"][i], fill="purple")
 
-        #draw obstacles
+        # draw obstacles
         for i in range(len(self.world["obstacles_vertex_ids"])):
             ids = self.world["obstacles_vertex_ids"][i]
             self.canvas.coords(self.visWorld["obstacles_id"][i],
@@ -444,14 +479,6 @@ class Collision_Avoidance_Sim():
                         scale * self.sim.getObstacleVertex(ids[2])[1],
                         scale * self.sim.getObstacleVertex(ids[3])[0],
                         scale * self.sim.getObstacleVertex(ids[3])[1])
-
-        #draw targets
-        for i in range(len(self.world["targets_pos"])):
-            self.canvas.coords(self.visWorld["targets_id"][i],
-                        scale * (self.world["targets_pos"][i][0][0] - self.radius),
-                        scale * (self.world["targets_pos"][i][0][1] - self.radius),
-                        scale * (self.world["targets_pos"][i][0][0] + self.radius),
-                        scale * (self.world["targets_pos"][i][0][1] + self.radius))
 
     def draw_update(self):
         # draw world and update window
