@@ -71,6 +71,7 @@ class Collision_Avoidance_Sim():
         self.play_speed = 4
         if visualize:
             self._init_visworld()
+            visualize_action_space(self.online_actions)
 
         # start timer
         self.t_start = time.time()
@@ -697,7 +698,6 @@ def visualize_action_space(actions):
 
     win.update_idletasks()
     win.update()
-    time.sleep(10)
 
 if __name__ == "__main__":
     # congested
@@ -706,12 +706,10 @@ if __name__ == "__main__":
     # circle
     # blocks
     # incoming
-    # CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
-    #                              #online_actions=[(1, 0), (-0.3459460861466897, 0.9382543927314101), (-0.5115760830713603, 0.8592379828833016), (0.7320970256107963, -0.6812003707367056), (-0.14218982989785492, 0.9898394073149538), (0.5294085281990504, 0.8483670256852958), (-0.9999950648019721, -0.003141714770573819), (-0.9935594588528943, 0.11331196637577122)],
-    #                              visualize=True)
-    CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
-                                 online_actions=[(1, 0), (-0.8507885983503763, -0.5255080978605392)],
+    CA = Collision_Avoidance_Sim(numAgents=20, scenario="congested",
+                                 online_actions=[(1, 0), (0.9009108952317388, 0.4340041000414015), (0.8425621872144076, 0.5385990722944792), (-0.9747090437965987, -0.2234776945046645), (-0.7297166474031178, 0.6837496723968165), (0.3099284486326036, -0.9507598838445949), (0.9990288702365868, 0.04406037260179406), (-0.2961053847313458, -0.9551552759280041), (-0.9898935365354221, 0.14181250412215018)],
                                  visualize=True)
+    # CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
+    #                              online_actions=[(1, 0), (-0.8507885983503763, -0.5255080978605392)],
+    #                              visualize=True)
     print(CA.run_sim(1))
-
-    # visualize_action_space([(1, 0), (-0.8507885983503763, -0.5255080978605392)])
