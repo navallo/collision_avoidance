@@ -55,15 +55,13 @@ class MCMC_trainer():
         num = 3
         for i in range(num):
             self.simulator.reset(online_actions=actions)
-            finished, total_time, ave_time, std_time = self.simulator.run_sim(mode=1)
+            finished, total_time, TTime, min_TTime = self.simulator.run_sim(mode=1)
             if finished:
                 print("finished :)")
             else:
                 print("did not finish :(")
-            print("Total time:", total_time, "average time:", ave_time, "standard deviation time:", std_time)
-            score = ave_time + 3 * std_time
-            print("score:", score)
-            total_score += score
+            print("Total time:", total_time, "TTime:", TTime, "min TTime:", min_TTime)
+            total_score += TTime
         return total_score / num
 
     def select_modification(self, actions, i):
@@ -140,11 +138,20 @@ if __name__ == "__main__":
     # circle
     # blocks
     # incoming
-    mcmc = MCMC_trainer(numAgents=21, scenario="incoming", numRounds=100)
+    mcmc = MCMC_trainer(numAgents=40, scenario="circle", numRounds=100)
     actions = mcmc.train()
-    f = open("incoming_actions.act", "w+")
+    f = open("circle_actions.act", "w+")
     f.write(str(actions))
     f.close()
+
+
+
+
+    # mcmc = MCMC_trainer(numAgents=21, scenario="incoming", numRounds=100)
+    # actions = mcmc.train()
+    # f = open("incoming_actions.act", "w+")
+    # f.write(str(actions))
+    # f.close()
 
 
 

@@ -20,8 +20,8 @@ class Collision_Avoidance_Sim():
 
         # ORCA config
         self.timeStep = 1/60.
-        self.neighborDist = 5#1.5
-        self.maxNeighbors = 10#5
+        self.neighborDist = 5
+        self.maxNeighbors = 10
         self.timeHorizon = 1.5
         self.radius = 0.5
         self.maxSpeed = 1
@@ -50,6 +50,7 @@ class Collision_Avoidance_Sim():
         else:
             self.online_actions = online_actions
 
+        self.gamma = 0.6
         self.timewindow = 2
         self.online_temp = 0.2
 
@@ -72,6 +73,10 @@ class Collision_Avoidance_Sim():
         if visualize:
             self._init_visworld()
             visualize_action_space(self.online_actions)
+
+        # data colection
+        self.min_TTime = 0
+        self.TTime = 0
 
         # start timer
         self.t_start = time.time()
@@ -125,7 +130,8 @@ class Collision_Avoidance_Sim():
         times = np.array(self.agents_time)
         ave_time = np.average(times)
         std_time = np.std(times, 0)
-        return success, total_time, ave_time, std_time
+        self.TTime = ave_time + 3*std_time
+        return success, total_time, self.TTime, self.min_TTime
 
     def _init_world(self):
         self.world = {}
@@ -151,12 +157,17 @@ class Collision_Avoidance_Sim():
         else:
             print(self.scenario, "is not a valid scenario")
 
-        min_total_time = 0
-        # for i in range(len(self.world["agents_id"])):
-        #     agent = self.world["agents_id"][i]
-        #     start = self.sim.getAgentPosition(agent)
-        #     goal = self.world["target_pos"][i][0]
-        #     dist = sqrt((goal[0]-start[0])**2 + (goal[1]-start[1])**2)
+        min_times = []
+        for i in range(len(self.world["agents_id"])):
+            agent = self.world["agents_id"][i]
+            start = self.sim.getAgentPosition(agent)
+            goal = self.world["targets_pos"][i][0]
+            dist = sqrt((goal[0]-start[0])**2 + (goal[1]-start[1])**2)
+            min_times.append(self.maxSpeed*dist)
+        times = np.array(min_times)
+        ave_time = np.average(times)
+        std_time = np.std(times, 0)
+        self.min_TTime = ave_time + 3*std_time
 
     def _init_world_congested(self):
         # adjust environment size
@@ -582,10 +593,9 @@ class Collision_Avoidance_Sim():
             orca_vel = self.sim.getAgentVelocity(agent_id)
 
             # calculate reward
-            scale = 0.6
             R_goal = np.dot(orca_vel, pref_vel)
             R_polite = np.dot(orca_vel, action_vel)
-            R = scale*R_goal + (1-scale)*R_polite
+            R = self.gamma*R_goal + (1-self.gamma)*R_polite
 
             # increment time window of action weights
             for act_id in range(len(self.online_actions)):
@@ -719,7 +729,10 @@ if __name__ == "__main__":
     # CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
     #                              online_actions=[(1, 0), (-0.8507885983503763, -0.5255080978605392)],
     #                              visualize=True)
-    CA = Collision_Avoidance_Sim(numAgents=21, scenario="incoming",
-                                 online_actions=[(1, 0), (-0.8773828831791611, -0.4797908672580403), (0.1520704393368215, -0.988369658316111), (0.15098864856953262, 0.9885354965822655), (0.49267960206794637, -0.8702107846413821)],
+    # CA = Collision_Avoidance_Sim(numAgents=21, scenario="incoming",
+    #                              online_actions=[(1, 0), (-0.8773828831791611, -0.4797908672580403), (0.1520704393368215, -0.988369658316111), (0.15098864856953262, 0.9885354965822655), (0.49267960206794637, -0.8702107846413821)],
+    #                              visualize=True)
+    CA = Collision_Avoidance_Sim(numAgents=40, scenario="circle",
+                                 online_actions=[(1, 0), (-0.946001067452245, -0.3241635087100537), (0.9651519613079926, -0.2616900677964968)],
                                  visualize=True)
     print(CA.run_sim(1))
