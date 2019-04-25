@@ -51,14 +51,20 @@ class MCMC_trainer():
         return cos(angle), sin(angle)
 
     def evaluate_action(self, actions, i=0):
-        self.simulator.reset(online_actions=actions)
-        finished, total_time, ave_time, std_time = self.simulator.run_sim(mode=1)
-        if finished:
-            print("finished :)")
-        else:
-            print("did not finish :(")
-        print("Total time:", total_time, "average time:", ave_time, "standard deviation time:", std_time)
-        return ave_time + 3*std_time
+        total_score = 0
+        num = 3
+        for i in range(num):
+            self.simulator.reset(online_actions=actions)
+            finished, total_time, ave_time, std_time = self.simulator.run_sim(mode=1)
+            if finished:
+                print("finished :)")
+            else:
+                print("did not finish :(")
+            print("Total time:", total_time, "average time:", ave_time, "standard deviation time:", std_time)
+            score = ave_time + 3 * std_time
+            print("score:", score)
+            total_score += score
+        return total_score / num
 
     def select_modification(self, actions, i):
         # if there is only 1 action then you must add
