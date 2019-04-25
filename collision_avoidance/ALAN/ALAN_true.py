@@ -672,6 +672,33 @@ class Collision_Avoidance_Sim():
             time.sleep(sleep_time)
 
 
+def visualize_action_space(actions):
+    win = Tk()
+    win.title("Action space")
+    pixelsize = 1000
+    canvas = Canvas(win, width=pixelsize, height=pixelsize, background="white")
+    canvas.pack()
+
+    half_window = pixelsize/2
+    line_width = int(0.01*pixelsize)
+    for action in actions:
+        canvas.create_line(half_window,
+                           half_window,
+                           half_window + 0.9*half_window*action[0],
+                           half_window + 0.9*half_window*action[1],
+                           arrow=LAST, width=line_width, fill="blue")
+
+    radius = 0.3 * half_window
+    canvas.create_oval(half_window - radius,
+                       half_window - radius,
+                       half_window + radius,
+                       half_window + radius,
+                       outline="black", fill="yellow")
+
+    win.update_idletasks()
+    win.update()
+    time.sleep(10)
+
 if __name__ == "__main__":
     # congested
     # crowd
@@ -683,6 +710,8 @@ if __name__ == "__main__":
     #                              #online_actions=[(1, 0), (-0.3459460861466897, 0.9382543927314101), (-0.5115760830713603, 0.8592379828833016), (0.7320970256107963, -0.6812003707367056), (-0.14218982989785492, 0.9898394073149538), (0.5294085281990504, 0.8483670256852958), (-0.9999950648019721, -0.003141714770573819), (-0.9935594588528943, 0.11331196637577122)],
     #                              visualize=True)
     CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
-                                 online_actions=[(1, 0), (-0.61386384011444, -0.7894119240294976), (0.9455877785157769, -0.3253671051621506)],
+                                 online_actions=[(1, 0), (-0.8507885983503763, -0.5255080978605392)],
                                  visualize=True)
     print(CA.run_sim(1))
+
+    # visualize_action_space([(1, 0), (-0.8507885983503763, -0.5255080978605392)])
