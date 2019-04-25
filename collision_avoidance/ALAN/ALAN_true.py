@@ -9,17 +9,14 @@ from gym.utils import seeding
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import numpy as np
-FLAG_DRAW = True
-# FLAG_DRAW = False
-if FLAG_DRAW:
-    from tkinter import *
+from tkinter import *
 import rvo2
 
 from collision_avoidance.envs.utils import *
 
 class Collision_Avoidance_Sim():
 
-    def __init__(self, numAgents=50, scenario="crowd", visualize=True):
+    def __init__(self, numAgents=50, scenario="crowd", online_actions=None, visualize=True):
 
         # ORCA config
         self.timeStep = 1/60.
@@ -38,7 +35,7 @@ class Collision_Avoidance_Sim():
                                        maxSpeed=self.maxSpeed)
 
         # ALAN config
-        self.online_actions = [(1, 0),
+        self.default_online_actions = [(1, 0),
             (0.70711, 0.70711),
             (0, 1),
             (-0.70711, 0.70711),
@@ -46,8 +43,15 @@ class Collision_Avoidance_Sim():
             (-0.70711, -0.70711),
             (0, -1),
             (0.70711, -0.70711)]
+        self.online_actions = self.default_online_actions
+        # update online actions if necessary
+        if online_actions is None:
+            self.online_actions = self.default_online_actions
+        else:
+            self.online_actions = online_actions
+
         self.timewindow = 2
-        self.online_temp = 0.05
+        self.online_temp = 0.2
 
         # world config
         self.numAgents = numAgents
@@ -58,9 +62,9 @@ class Collision_Avoidance_Sim():
 
         self.step_count = 0
         self.max_step = int((10/self.timeStep) * self.numAgents)
-        print(self.max_step)
 
         self.agents_done = [0] * self.numAgents
+        self.agents_time = [self.max_step*self.timeStep] * self.numAgents
 
         self._init_world()
         self.visualize = visualize
@@ -71,7 +75,7 @@ class Collision_Avoidance_Sim():
         # start timer
         self.t_start = time.time()
 
-    def reset(self, numAgents=50, scenario="crowd"):
+    def reset(self, online_actions=None):
         # ORCA config
         self.sim = rvo2.PyRVOSimulator(timeStep=self.timeStep,
                                        neighborDist=self.neighborDist,
@@ -81,15 +85,18 @@ class Collision_Avoidance_Sim():
                                        radius=self.radius,
                                        maxSpeed=self.maxSpeed)
 
+        # update online actions if necessary
+        if online_actions is None:
+            self.online_actions = self.default_online_actions
+        else:
+            self.online_actions = online_actions
 
         # world config
         self.step_count = 0
-        self.max_step = 2000
-
         self.agents_done = [0] * self.numAgents
+        self.agents_time = [self.max_step * self.timeStep] * self.numAgents
 
         self._init_world()
-        self.play_speed = 4
         if self.visualize:
             self.win.destroy()
             self._init_visworld()
@@ -107,11 +114,17 @@ class Collision_Avoidance_Sim():
                 self.online_step()
             else:
                 self.orca_step()
+            # increment steps
+            self.step_count += 1
             success = self.done_test()
             if success:
                 break
 
-        return self.step_count*self.timeStep, success
+        total_time = self.step_count*self.timeStep
+        times = np.array(self.agents_time)
+        ave_time = np.average(times)
+        std_time = np.std(times, 0)
+        return success, total_time, ave_time, std_time
 
     def _init_world(self):
         self.world = {}
@@ -512,6 +525,7 @@ class Collision_Avoidance_Sim():
                 t_pos = self.world["targets_pos"][agent_id][0]
                 if sqrt((pos[0] - t_pos[0])**2 + (pos[1] - t_pos[1])**2) < 2 * self.radius:
                     self.agents_done[agent_id] = 1
+                    self.agents_time[agent_id] = self.step_count*self.timeStep
                     self.world["targets_pos"][agent_id] = (self.world["targets_pos"][agent_id][1],
                                                            self.world["targets_pos"][agent_id][1])
         if 0 not in self.agents_done:
@@ -560,7 +574,7 @@ class Collision_Avoidance_Sim():
             orca_vel = self.sim.getAgentVelocity(agent_id)
 
             # calculate reward
-            scale = 0.7
+            scale = 0.6
             R_goal = np.dot(orca_vel, pref_vel)
             R_polite = np.dot(orca_vel, action_vel)
             R = scale*R_goal + (1-scale)*R_polite
@@ -575,19 +589,13 @@ class Collision_Avoidance_Sim():
             # update weight
             self.world["action_weights"][agent_id][action_id] = R
 
-        # increment steps
-        self.step_count += 1
 
-
-    #not used in RL, just for orca visualization
     def orca_step(self):
         self.sim.doStep()
         self.update_pref_vel()
 
-        if FLAG_DRAW:
+        if self.visualize:
             self.draw_update()
-
-        self.step_count += 1
 
     #gym native render, should be useless
     def render(self, mode='human'):
@@ -671,7 +679,7 @@ if __name__ == "__main__":
     # circle
     # blocks
     # incoming
-    CA = Collision_Avoidance_Sim(10, "incoming", True)
+    CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
+                                 #online_actions=[(1, 0), (-0.3459460861466897, 0.9382543927314101), (-0.5115760830713603, 0.8592379828833016), (0.7320970256107963, -0.6812003707367056), (-0.14218982989785492, 0.9898394073149538), (0.5294085281990504, 0.8483670256852958), (-0.9999950648019721, -0.003141714770573819), (-0.9935594588528943, 0.11331196637577122)],
+                                 visualize=True)
     print(CA.run_sim(1))
-    # CA.reset()
-    # print(CA.run_sim(1))
