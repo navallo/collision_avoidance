@@ -152,8 +152,11 @@ class Collision_Avoidance_Sim():
             print(self.scenario, "is not a valid scenario")
 
         min_total_time = 0
-        #for i in range(len(self.world["agents_id"])):
-        #self.world["agents_id"]
+        # for i in range(len(self.world["agents_id"])):
+        #     agent = self.world["agents_id"][i]
+        #     start = self.sim.getAgentPosition(agent)
+        #     goal = self.world["target_pos"][i][0]
+        #     dist = sqrt((goal[0]-start[0])**2 + (goal[1]-start[1])**2)
 
     def _init_world_congested(self):
         # adjust environment size
@@ -713,7 +716,10 @@ if __name__ == "__main__":
     # CA = Collision_Avoidance_Sim(numAgents=20, scenario="congested",
     #                              online_actions=[(1, 0), (0.9009108952317388, 0.4340041000414015), (0.8425621872144076, 0.5385990722944792), (-0.9747090437965987, -0.2234776945046645), (-0.7297166474031178, 0.6837496723968165), (0.3099284486326036, -0.9507598838445949), (0.9990288702365868, 0.04406037260179406), (-0.2961053847313458, -0.9551552759280041), (-0.9898935365354221, 0.14181250412215018)],
     #                              visualize=True)
-    CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
-                                 online_actions=[(1, 0), (-0.8507885983503763, -0.5255080978605392)],
+    # CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
+    #                              online_actions=[(1, 0), (-0.8507885983503763, -0.5255080978605392)],
+    #                              visualize=True)
+    CA = Collision_Avoidance_Sim(numAgents=21, scenario="incoming",
+                                 online_actions=[(1, 0), (-0.8773828831791611, -0.4797908672580403), (0.1520704393368215, -0.988369658316111), (0.15098864856953262, 0.9885354965822655), (0.49267960206794637, -0.8702107846413821)],
                                  visualize=True)
     print(CA.run_sim(1))

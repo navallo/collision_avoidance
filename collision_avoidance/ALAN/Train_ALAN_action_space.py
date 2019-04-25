@@ -140,11 +140,19 @@ if __name__ == "__main__":
     # circle
     # blocks
     # incoming
-    mcmc = MCMC_trainer(numAgents=20, scenario="congested", numRounds=100)
+    mcmc = MCMC_trainer(numAgents=21, scenario="incoming", numRounds=100)
     actions = mcmc.train()
-    f = open("congested_actions.act", "w+")
+    f = open("incoming_actions.act", "w+")
     f.write(str(actions))
     f.close()
+
+
+
+    # mcmc = MCMC_trainer(numAgents=20, scenario="congested", numRounds=100)
+    # actions = mcmc.train()
+    # f = open("congested_actions.act", "w+")
+    # f.write(str(actions))
+    # f.close()
 
 
 
