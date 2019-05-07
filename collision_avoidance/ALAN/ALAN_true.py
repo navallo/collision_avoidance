@@ -723,32 +723,33 @@ if __name__ == "__main__":
     # circle
     # blocks
     # incoming
-    # CA = Collision_Avoidance_Sim(numAgents=20, scenario="congested",
+    # CA = Collision_Avoidance_Sim(numAgents=50, scenario="congested",
     #                              online_actions=[(1, 0), (0.9009108952317388, 0.4340041000414015), (0.8425621872144076, 0.5385990722944792), (-0.9747090437965987, -0.2234776945046645), (-0.7297166474031178, 0.6837496723968165), (0.3099284486326036, -0.9507598838445949), (0.9990288702365868, 0.04406037260179406), (-0.2961053847313458, -0.9551552759280041), (-0.9898935365354221, 0.14181250412215018)],
     #                              visualize=True)
-    # CA = Collision_Avoidance_Sim(numAgents=20, scenario="deadlock",
+    # CA = Collision_Avoidance_Sim(numAgents=50, scenario="deadlock",
     #                              online_actions=[(1, 0), (-0.8507885983503763, -0.5255080978605392)],
     #                              visualize=True)
     # CA = Collision_Avoidance_Sim(numAgents=21, scenario="incoming",
     #                              online_actions=[(1, 0), (-0.8773828831791611, -0.4797908672580403), (0.1520704393368215, -0.988369658316111), (0.15098864856953262, 0.9885354965822655), (0.49267960206794637, -0.8702107846413821)],
     #                              visualize=True)
-    # CA = Collision_Avoidance_Sim(numAgents=40, scenario="circle",
-    #                              online_actions=[(1, 0), (-0.946001067452245, -0.3241635087100537), (0.9651519613079926, -0.2616900677964968)],
-    #                              visualize=True)
+    CA = Collision_Avoidance_Sim(numAgents=100, scenario="circle",
+                                 online_actions=[(1, 0), (-0.946001067452245, -0.3241635087100537), (0.9651519613079926, -0.2616900677964968)],
+                                 visualize=True)
     # CA = Collision_Avoidance_Sim(numAgents=40, scenario="crowd",
     #                              #online_actions=[(1, 0), (0.06130798855686512, -0.9981188959934139), (0.6957331792402002, -0.718300315539624), (0.2199481143650689, 0.9755115719391804), (-0.34342388205007957, -0.9391805136594631), (-0.5032837686361407, -0.8641211999641044), (0.23892114215448593, 0.9710389733844857), (-0.9579667593692613, -0.28687922187491344), (-0.6767380373137093, 0.7362238985884584)],
     #                              visualize=True)
-    # print(CA.run_sim(1))
+    print(CA.run_sim(1))
+
 
     # collecting data
-    total = 0
-    num = 3
-    CA = Collision_Avoidance_Sim(numAgents=20, scenario="congested",
-                                 #online_actions=[(1, 0), (0.9009108952317388, 0.4340041000414015), (0.8425621872144076, 0.5385990722944792), (-0.9747090437965987, -0.2234776945046645), (-0.7297166474031178, 0.6837496723968165), (0.3099284486326036, -0.9507598838445949), (0.9990288702365868, 0.04406037260179406), (-0.2961053847313458, -0.9551552759280041), (-0.9898935365354221, 0.14181250412215018)],
-                                 visualize=True)
-    for i in range(num):
-        CA.reset()
-        finished, total_time, TTime, min_TTime = CA.run_sim(1)
-        total += TTime
-
-    print(total/num)
+    # total = 0
+    # num = 3
+    # CA = Collision_Avoidance_Sim(numAgents=20, scenario="blocks",
+    #                              online_actions=[(1, 0), (0.47793668363831737, -0.8783942887068465), (-0.9934856438219436, 0.11395734078899142), (-0.8813346776537921, -0.47249252477143616), (-0.9703087227605884, -0.2418697635809723), (0.8163336987112819, 0.577580550528113), (0.1553219334597776, -0.987863906105652), (-0.8927531532165186, -0.450546121303872)],
+    #                              visualize=True)
+    # for i in range(num):
+    #     CA.reset()
+    #     finished, total_time, TTime, min_TTime = CA.run_sim(1)
+    #     total += TTime
+    #
+    # print(total/num)
