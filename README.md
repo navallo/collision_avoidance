@@ -3,6 +3,9 @@ gym-like collision avoidance environment with ORCA
 
 # To reproduce the paper   
 
+## Environment  
+Tested on Ubuntu 18.04 and Python 3.6+
+
 ## Known dependencies   
  
 1. [Optimal Reciprocal Collision Avoidance](https://github.com/sybrenstuvel/Python-RVO2/)  
