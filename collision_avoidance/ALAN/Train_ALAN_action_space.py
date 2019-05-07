@@ -12,13 +12,13 @@ class MCMC_trainer():
 
         self.simulator = Collision_Avoidance_Sim(numAgents=self.numAgents, scenario=self.scenario, visualize=False)
 
-        # init action set
+        # Init action set
         self.actions = [(1, 0), self.random_action()]
         self.actions_opt = self.actions
-        # init evaluation
+        # Init evaluation
         self.eval = self.evaluate_action(self.actions)
         self.eval_opt = self.eval
-        # init temp
+        # Init temp
         self.init_temp = 0.9
         self.final_temp = 0.1
         self.temp = self.init_temp
@@ -27,29 +27,31 @@ class MCMC_trainer():
     def train(self):
         for i in range(self.numRounds):
             print("run:", i)
-            # select modification
+            # Select modification
             modification = self.select_modification(self.actions, i)
-            # apply modification
+            # Apply modification
             action_dist, new_actions = self.apply_modification(self.actions, modification)
-            # evaluate
+            # Evaluate
             new_eval = self.evaluate_action(new_actions, i)
-            # update optimal action set
+            # Update optimal action set
             if new_eval < self.eval_opt:
                 self.actions_opt = new_actions
                 self.eval_opt = new_eval
-            # update expolitory action set
+            # Update exploratory action set
             if uniform(0, 1) < self.symmetric_likelihood(action_dist)*exp((self.eval - new_eval)/self.temp):
                 self.actions = new_actions
                 self.eval = new_eval
-            # update temp
+            # Update temp
             self.temp -= self.delta_temp
 
         return self.actions_opt
 
+    # Generate a random action
     def random_action(self):
         angle = uniform(-pi, pi)
         return cos(angle), sin(angle)
 
+    # Evaluate an action set based on the simulation TTime
     def evaluate_action(self, actions, i=0):
         total_score = 0
         num = 3
@@ -64,12 +66,14 @@ class MCMC_trainer():
             total_score += TTime
         return total_score / num
 
+    # Randomly select wat type of modification to make
     def select_modification(self, actions, i):
         # if there is only 1 action then you must add
         if len(actions) <= 1:
             return 2
         return np.random.choice(3, p=[0.8, 0.1, 0.1])
 
+    # Apply the given modification to the given action set
     def apply_modification(self, actions, modification):
         if modification == 2:
             return self.mod_add(actions)
@@ -78,28 +82,28 @@ class MCMC_trainer():
         else:
             return self.mod_edit(actions)
 
-    # randomly edit an action
+    # Randomly edit an action
     def mod_edit(self, actions):
-        # choose an action to change
+        # Choose an action to change
         index = np.random.choice(range(1, len(actions)))
-        # make a new action
+        # Make a new action
         angle = np.arctan2(actions[index][1], actions[index][0])
         new_angle = np.random.normal(angle, pi)
         new_action = (cos(new_angle), sin(new_angle))
         # calculate distance from current action to new action
         dist = self.dist(actions[index], new_action)
-        # update current action to new action
+        # Update current action to new action
         actions[index] = new_action
         return dist, actions
 
-    # randomly remove an action
+    # Randomly remove an action
     def mod_remove(self, actions):
-        # choose an action to remove
+        # Choose an action to remove
         index = np.random.choice(range(1, len(actions)))
-        # remove old action
+        # Remove old action
         old_action = actions[index]
         actions.remove(old_action)
-        # find distance to closest action
+        # Find distance to closest action
         min_dist = 10
         for act in actions:
             dist = self.dist(act, old_action)
@@ -107,23 +111,25 @@ class MCMC_trainer():
                 min_dist = dist
         return min_dist, actions
 
-    # add a new random action
+    # Add a new random action
     def mod_add(self, actions):
-        # choose an action to change
+        # Choose an action to change
         index = np.random.choice(range(0, len(actions)))
-        # make a new action
+        # Make a new action
         angle = np.arctan2(actions[index][1], actions[index][0])
         new_angle = np.random.normal(angle, pi)
         new_action = (cos(new_angle), sin(new_angle))
-        # calculate distance from current action to new action
+        # Calculate distance from current action to new action
         dist = self.dist(actions[index], new_action)
-        # add new action to actions
+        # Add new action to actions
         actions.append(new_action)
         return dist, actions
 
+    # Distance function to measure how much of a change there is between two actions
     def dist(self, point1, point2):
         return sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
 
+    # pdf sample from normal distribution
     def symmetric_likelihood(self, dist):
         std = 0.5
         return norm.pdf(dist) / std
@@ -132,20 +138,22 @@ class MCMC_trainer():
 
 
 if __name__ == "__main__":
+    # different scenarios:
+
     # congested
     # crowd
     # deadlock
     # circle
     # blocks
     # incoming
+
+    # comment or uncoment these sections to train the action space for different scenarios
+
     mcmc = MCMC_trainer(numAgents=20, scenario="blocks", numRounds=100)
     actions = mcmc.train()
     f = open("blocks_actions.act", "w+")
     f.write(str(actions))
     f.close()
-
-    
-
 
     # mcmc = MCMC_trainer(numAgents=40, scenario="crowd", numRounds=100)
     # actions = mcmc.train()
@@ -153,16 +161,11 @@ if __name__ == "__main__":
     # f.write(str(actions))
     # f.close()
 
-
-
     # mcmc = MCMC_trainer(numAgents=40, scenario="circle", numRounds=100)
     # actions = mcmc.train()
     # f = open("circle_actions.act", "w+")
     # f.write(str(actions))
     # f.close()
-
-
-
 
     # mcmc = MCMC_trainer(numAgents=21, scenario="incoming", numRounds=100)
     # actions = mcmc.train()
@@ -170,20 +173,14 @@ if __name__ == "__main__":
     # f.write(str(actions))
     # f.close()
 
-
-
     # mcmc = MCMC_trainer(numAgents=20, scenario="congested", numRounds=100)
     # actions = mcmc.train()
     # f = open("congested_actions.act", "w+")
     # f.write(str(actions))
     # f.close()
 
-
-
     # mcmc = MCMC_trainer(numAgents=20, scenario="deadlock", numRounds=100)
     # actions = mcmc.train()
     # f = open("deadlock_actions.act", "w+")
     # f.write(str(actions))
     # f.close()
-
-
