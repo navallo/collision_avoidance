@@ -1,6 +1,6 @@
 # Collision Avoidance Env
 gym-like collision avoidance environment with ORCA  
- ![image]( https://github.com/navallo/collision_avoidance/blob/master/demo.gif=250x250)
+ ![image]( https://github.com/navallo/collision_avoidance/blob/master/demo.gif =250x250)
 # To reproduce the paper   
 
 ## Environment  
